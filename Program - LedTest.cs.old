@@ -1,0 +1,38 @@
+﻿using System;
+using System.Device.Gpio;
+using System.Threading;
+
+namespace Z_PumpControl_Raspi;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        Console.WriteLine("Hello World!");
+
+
+
+        int ledPin = 24; //GPIO24 is pin 18 on RPi
+        int ledOnTime = 2000; //led on time in ms
+        int ledOffTime = 3000; //led off time in ms
+
+        using GpioController controller = new();
+        controller.OpenPin(ledPin, PinMode.Output);
+
+        Console.CancelKeyPress += (s, e) =>
+        {
+            controller.Dispose();
+        };
+
+        while (true)
+        {
+            controller.Write(ledPin, PinValue.High);
+            Console.WriteLine("switched ON");
+            Thread.Sleep(ledOnTime);
+
+            controller.Write(ledPin, PinValue.Low);
+            Console.WriteLine("switched OFF");
+            Thread.Sleep(ledOffTime);
+        }
+    }
+}
