@@ -1,6 +1,6 @@
 #See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
-FROM mcr.microsoft.com/dotnet/runtime:8.0 AS base
+FROM arm64v8/alpine:3.14 AS base
 USER app
 WORKDIR /app
 
@@ -15,9 +15,10 @@ RUN dotnet build "./Z-PumpControl_Raspi.csproj" -c $BUILD_CONFIGURATION -o /app/
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./Z-PumpControl_Raspi.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./Z-PumpControl_Raspi.csproj" -c $BUILD_CONFIGURATION -r linux-arm64 -o /app/publish /p:UseAppHost=true /p:PublishSingleFile=true
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "Z-PumpControl_Raspi.dll"]
+
+ENTRYPOINT ["./Z-PumpControl_Raspi"]
