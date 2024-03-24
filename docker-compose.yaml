@@ -1,0 +1,52 @@
+version: '3'
+
+services:
+    mosquitto:
+        container_name: mosquitto
+        restart: always
+        image: eclipse-mosquitto
+        ports:
+            - "1883:1883"
+            - "9001:9001"
+        volumes: 
+            - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+            - ./mosquitto/data:/mosquitto/data
+            - ./mosquitto/log:/mosquitto/log
+        networks:
+            - default
+            
+    influxdb:
+        image: influxdb:latest
+        container_name: influxdb
+        restart: always
+        ports:
+          - "8086:8086"
+        volumes:
+            - ./influxdb:/var/lib/influxdb2
+            
+    node-red:
+        image: nodered/node-red:latest
+        container_name: node-red
+        restart: always
+        environment:
+            - TZ=Europe/Amsterdam
+        ports:
+            - "1880:1880"
+        volumes:
+            - ./node-red:/data
+            
+    grafana:
+        image: grafana/grafana-oss:latest
+        restart: unless-stopped
+        #environment:
+            # increases the log level from info to debug
+            # - GF_LOG_LEVEL=debug
+        ports:
+            - '3000:3000'
+        volumes:
+            - ./grafana:/var/lib/grafana
+        #    - ./grafana/log:/var/log/grafana            
+
+networks:
+    default:
+    
