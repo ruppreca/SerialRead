@@ -20,4 +20,4 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
-ENTRYPOINT [./GPIO-Control]
+ENTRYPOINT ["./GPIO-Control"]

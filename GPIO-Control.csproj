@@ -14,4 +14,7 @@
     <PackageReference Include="NLog" Version="5.2.8" />
     <PackageReference Include="System.Device.Gpio" Version="3.1.0" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="nlog.config" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
