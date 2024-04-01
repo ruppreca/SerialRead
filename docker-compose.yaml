@@ -3,7 +3,7 @@ version: '3'
 services:
     z-pump:
         image: ruppreca/gpiocontrol:latest
-        container_name: z-pump
+        container_name: gpiocontrol
         restart: always
         user: 1000:993
         volumes:
@@ -11,6 +11,4 @@ services:
             - /etc/passwd:/etc/passwd:ro
             - /etc/shadow:/etc/shadow:ro
             - /sys/class/pwm/pwmchip0:/sys/class/pwm/pwmchip0:rw
-    
-networks:
-    default:
+            - /var/log/gpiocontrol:/var/log/gpiocontrol:rw

@@ -16,6 +16,11 @@ class Program
 
     static async Task Main(string[] args)
     {
+        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(2.0)}");
+        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(40.0)}");
+        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(216.0)}");
+        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(315.0)}");
+
         KebaBackgroundService kebaBackgroundService = new(TimeSpan.FromSeconds(10));
         await kebaBackgroundService.Start() ;
     }
@@ -26,7 +31,7 @@ class Program
         private readonly PeriodicTimer timer;
         private readonly CancellationTokenSource cts = new();
         private Task? timerTask;
-        private static readonly PwmKeba _pwmKeba = new();
+        private static readonly PwmKemo _pwmKemo = new();
 
         public KebaBackgroundService(TimeSpan timerInterval)
         {
@@ -36,7 +41,7 @@ class Program
         public async Task Start()
         {
             Log.Info("KebaBackgroundService do start up");
-            await _pwmKeba.init();
+            await _pwmKemo.init();
             timerTask = DoWorkAsync();
             Log.Info("KebaBackgroundService started success");
         }
@@ -48,7 +53,7 @@ class Program
                 while (await timer.WaitForNextTickAsync(cts.Token))
                 {
                     Log.Info(string.Concat("Keba run loop: ", DateTime.Now.ToString("O")));
-                    await _pwmKeba.loop();
+                    await _pwmKemo.loop();
                 }
             }
             catch (OperationCanceledException)

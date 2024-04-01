@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Z_PumpControl_Raspi;
 
-internal class PwmKeba
+internal class PwmKemo
 {
     private static Logger Log = LogManager.GetCurrentClassLogger();
 
@@ -18,7 +18,7 @@ internal class PwmKeba
 
     public string Period { get; set; } = "1000000"; //period 1ms
     public int DutyCycle { get; set; } = 100000;
-    public PwmKeba()
+    public PwmKemo()
     {
         _mqtt = new Mqtt();
     }
