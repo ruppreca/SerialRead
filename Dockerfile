@@ -1,6 +1,8 @@
 #See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
-FROM arm64v8/alpine:3.19 AS base
+# apline only if published as single file
+# FROM arm64v8/alpine:3.19 AS base
+FROM 8.0-alpine3.19-arm64v8 AS base
 WORKDIR /app
 RUN apk upgrade --no-cache && apk add --no-cache postgresql-client bash openssl libgcc libstdc++ ncurses-libs
 
@@ -15,7 +17,9 @@ RUN dotnet build "./GPIO-Control.csproj" -c $BUILD_CONFIGURATION -o /app/build -
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./GPIO-Control.csproj" -c $BUILD_CONFIGURATION -r linux-musl-arm64 -o /app/publish /p:UseAppHost=true /p:PublishSingleFile=true
+# Publish as single file
+# RUN dotnet publish "./GPIO-Control.csproj" -c $BUILD_CONFIGURATION -r linux-musl-arm64 -o /app/publish /p:UseAppHost=true /p:PublishSingleFile=true
+RUN dotnet publish "./GPIO-Control.csproj" -c $BUILD_CONFIGURATION -r linux-musl-arm64 -o /app/publish /p:UseAppHost=true
 
 FROM base AS final
 WORKDIR /app

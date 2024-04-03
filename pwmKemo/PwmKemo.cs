@@ -3,8 +3,9 @@ using System;
 using System.IO;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using Z_PumpControl_Raspi;
 
-namespace Z_PumpControl_Raspi;
+namespace GPIO_Control.pwmKemo;
 
 internal class PwmKemo
 {
@@ -43,15 +44,6 @@ internal class PwmKemo
                 Log.Info($"       found: {info.Name}");
             }
 
-
-
-            //if (!File.Exists(Pwm0))
-            //{
-            //    Log.Info("No pwm0 device -> Write a 0 to export");
-            //    File.WriteAllText(Path.Combine(PwmChip, "export"), "0");
-            //    await Task.Delay(500);
-            //}
-
             if (Directory.Exists(Pwm0))
             {
                 Log.Info($"Device {Pwm0} found");
@@ -61,7 +53,7 @@ internal class PwmKemo
                 Log.Info($"Device {Pwm0} setup period {Period}, duty cycle {DutyCycle}");
             }
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             Log.Error("Exeption: faild setup pwm0");
             Log.Error($"{ex.Message}");
@@ -75,7 +67,7 @@ internal class PwmKemo
         {
             if (Directory.Exists(Pwm0))
             {
-                if(DutyCycle > 900000)
+                if (DutyCycle > 900000)
                 {
                     DutyCycle = 0;
                 }
@@ -88,7 +80,7 @@ internal class PwmKemo
                 await Task.Delay(100);
             }
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             Log.Error("Exeption faild to swich Z-Pump off");
             Log.Error($"{ex.Message}");

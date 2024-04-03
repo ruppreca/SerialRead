@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-namespace GPIO_Control;
+namespace GPIO_Control.pwmKemo;
 
 static class PowerToPwmLookup
 {

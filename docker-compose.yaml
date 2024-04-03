@@ -6,9 +6,12 @@ services:
         container_name: gpiocontrol
         restart: always
         user: 1000:993
+        privileged: true
         volumes:
             - /etc/group:/etc/group:ro
             - /etc/passwd:/etc/passwd:ro
             - /etc/shadow:/etc/shadow:ro
+            - /etc/timezone:/etc/timezone:ro
+            - /etc/localtime:/etc/localtime:ro
             - /sys/class/pwm/pwmchip0:/sys/class/pwm/pwmchip0:rw
             - /var/log/gpiocontrol:/var/log/gpiocontrol:rw
