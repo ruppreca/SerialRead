@@ -16,10 +16,12 @@ class Program
 
     static async Task Main(string[] args)
     {
-        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(2.0)}");
-        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(40.0)}");
-        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(216.0)}");
-        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(315.0)}");
+        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(2)}");
+        Log.Info($"Look up 40.0: {PowerToPwmLookup.LookUp(40)}");
+        Log.Info($"Look up 216.0: {PowerToPwmLookup.LookUp(216)}");
+        Log.Info($"Look up 315.0: {PowerToPwmLookup.LookUp(315)}");
+
+        Log.Info($"Look up 216.5: {PowerToPwmLookup.LookUp(216)}");
 
         KebaBackgroundService kebaBackgroundService = new(TimeSpan.FromSeconds(10));
         await kebaBackgroundService.Start() ;
