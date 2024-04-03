@@ -22,23 +22,30 @@ namespace Z_PumpControl_Raspi
         {
             _client = new MqttClient(mqttIp);
             var r = _client.Connect(Guid.NewGuid().ToString(), user, passwd);
-            Log.Info($"Connect returns {r}");
+            Log.Info($"Connect returns {r}, Is connected: {_client.IsConnected}");
+        }
 
-            ushort sub = _client.Subscribe(["strom/zaehler/SENSOR"], [MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE]);
-
-            if (_client.IsConnected)
-            {
-                _client.Subscribe(["strom/zaehler/SENSOR"], [MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE]);
-                //_client.MqttMsgPublishReceived += ClientMqttMsgPublishReceived;
-                _client.MqttMsgSubscribed += ClientMqttMsgSubscribed;
-                //_client.MqttMsgPublished += ClientMqttMsgPublished;
-                //_client.ConnectionClosed += ClientMqttConnectionClosed;
-            }
+        private void ClientMqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e)
+        {
+            Log.Info($"MQTT message received: {Encoding.ASCII.GetString(e.Message)}, topic: {e.Topic}");
         }
 
         private void ClientMqttMsgSubscribed(object sender, MqttMsgSubscribedEventArgs e)
         {
-            Log.Info($"Subscribe received: {sender}, Msg.Id:{e.MessageId}, Qos:{e.GrantedQoSLevels}");
+            Log.Info($"Subscribe received, Msg.Id:{e.MessageId}, Qos:{e.GrantedQoSLevels}");
+        }
+
+        public void subscribe(string topic)
+        {
+            if (_client.IsConnected)
+            {
+                _client.MqttMsgPublishReceived += ClientMqttMsgPublishReceived;
+                _client.MqttMsgSubscribed += ClientMqttMsgSubscribed;
+                //_client.MqttMsgPublished += ClientMqttMsgPublished;
+                //_client.ConnectionClosed += ClientMqttConnectionClosed;
+
+                _client.Subscribe([topic], [MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE]);
+            }
         }
 
         public void publishZ(string value)

@@ -1,7 +1,7 @@
 version: '3'
 
 services:
-    z-pump:
+    gpiocontrol:
         image: ruppreca/gpiocontrol:latest
         container_name: gpiocontrol
         restart: always
@@ -15,3 +15,6 @@ services:
             - /etc/localtime:/etc/localtime:ro
             - /sys/class/pwm/pwmchip0:/sys/class/pwm/pwmchip0:rw
             - /var/log/gpiocontrol:/var/log/gpiocontrol:rw
+
+networks:
+    default:

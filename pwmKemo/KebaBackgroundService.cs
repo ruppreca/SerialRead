@@ -27,10 +27,13 @@ internal class KebaBackgroundService
         {
             Log.Info("KemoBackgroundService do start up");
             await _pwmKemo.init();
-            Log.Info("New Pump");
             Pump = new();
-            Log.Info("New Mqtt");
+            Log.Info("New Pump");
+            
             Mqtt = new();
+            Mqtt.subscribe("strom/zaehler/SENSOR");
+            Log.Info("New Mqtt and subscribe");
+
             timerTask = DoWorkAsync();
             Log.Info("KemoBackgroundService started success");
         }
@@ -47,8 +50,8 @@ internal class KebaBackgroundService
         {
             while (await timer.WaitForNextTickAsync(cts.Token))
             {
-                double flanschTemp = ReadTemp.Read1WireTemp("28-000000a84439");
-                Log.Info($"Heater flansch temp: {flanschTemp} at {DateTime.Now}");
+                double flanschTemp = ReadTemp.Read1WireTemp("28-000000a851b8");  //Flansch am Heizstab
+                Log.Info($"Heater flansch temp: {flanschTemp}°C at {DateTime.Now}");
                 Mqtt.publishHotFlansch((flanschTemp).ToString());
 
 
