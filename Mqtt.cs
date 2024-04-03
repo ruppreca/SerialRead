@@ -27,7 +27,8 @@ namespace Z_PumpControl_Raspi
 
         private void ClientMqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e)
         {
-            Log.Info($"MQTT message received: {Encoding.ASCII.GetString(e.Message)}, topic: {e.Topic}");
+            Log.Debug($"MQTT message received: {Encoding.ASCII.GetString(e.Message)}, topic: {e.Topic}");
+            _callback(Encoding.ASCII.GetString(e.Message));
         }
 
         private void ClientMqttMsgSubscribed(object sender, MqttMsgSubscribedEventArgs e)
@@ -35,8 +36,10 @@ namespace Z_PumpControl_Raspi
             Log.Info($"Subscribe received, Msg.Id:{e.MessageId}, Qos:{e.GrantedQoSLevels}");
         }
 
-        public void subscribe(string topic)
+        Action<string> _callback;
+        public void subscribe(string topic, Action<string> callback)
         {
+            _callback = callback;
             if (_client.IsConnected)
             {
                 _client.MqttMsgPublishReceived += ClientMqttMsgPublishReceived;
