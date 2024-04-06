@@ -8,28 +8,33 @@ using Z_PumpControl_Raspi;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace GPIO_Control.pwmKemo;
-internal class KebaBackgroundService
+public class KebaBackgroundService
 {
     private readonly PeriodicTimer timer;
     private readonly CancellationTokenSource cts = new();
-    private Task timerTask;
+    private Task? timerTask;
     private static readonly PwmKemo _pwmKemo = new();
     private static Logger Log = LogManager.GetCurrentClassLogger();
 
     private static Zpump Pump;
     private static Mqtt Mqtt;
 
+    //private GlobalProps _globalProps;
+
     public KebaBackgroundService(TimeSpan timerInterval)
     {
         timer = new(timerInterval);
     }
 
+    //public void Start(GlobalProps globalProps)
     public async Task Start()
     {
+        //_globalProps = new GlobalProps();
         try
         {
             Log.Info("KemoBackgroundService do start up");
             await _pwmKemo.init();
+            //await _pwmKemo.init(_globalProps);
             Pump = new();
             Log.Info("New Pump");
             
@@ -47,6 +52,10 @@ internal class KebaBackgroundService
         }
     }
 
+    int _maxFlanshTemp = 85;
+    int _alarmFlanshTemp = 90;
+    Task coolTask = Pump.RunForSec(5);
+   
     private async Task DoWorkAsync()
     {
         try
@@ -57,9 +66,25 @@ internal class KebaBackgroundService
                 Log.Info($"Heater flansch temp: {flanschTemp}°C at {DateTime.Now}");
                 Mqtt.publishHotFlansch((flanschTemp).ToString());
 
+                //if (flanschTemp > _maxFlanshTemp)
+                //{
+                //    Log.Info($"Heiz Flansch > {_maxFlanshTemp}, run pump for 5 sec");
+                //    if (!coolTask.IsCompleted)
+                //    {
+                //        coolTask.Wait();
+                //    }
+                //    coolTask.Start();
+                //}
+                //if (flanschTemp > _alarmFlanshTemp)
+                //{
+                //    Log.Error($"Heiz Flansch ALARRM Temp: {flanschTemp}°C, heater OFF");
+                //    _globalProps.FlanschHotAlarm = true;
+                //    _pwmKemo.alarmOff();
+                //    await Pump.RunForSec(300);
+                //}
 
-                //Log.Info(string.Concat("Keba run loop: ", DateTime.Now.ToString("O")));
-                //await _pwmKemo.loop();
+                Log.Info(string.Concat("Keba run loop: ", DateTime.Now.ToString("O")));
+                await _pwmKemo.loop();
             }
         }
         catch (OperationCanceledException)
@@ -85,9 +110,17 @@ internal class KebaBackgroundService
     {
         var now = DateTime.Now;
         (DateTime time, int? power) = ParseJsonSML(message);
-        if (power.HasValue && power < -3 && time - now < TimeSpan.FromSeconds(10))
+        if (power.HasValue && time - now < TimeSpan.FromSeconds(10))
         {
             Log.Info($"Time OK, power {power}");
+            //if (power > -1000 && power < 16000)
+            //{
+            //    _pwmKemo.controlPower((int)power);
+            //}
+            //else
+            //{
+            //    _pwmKemo.controlPower(0);
+            //}
             return;
         }
     }

@@ -16,6 +16,7 @@ internal class Zpump
     {
         _controller.OpenPin(PumpPin, PinMode.Output);
         _mqtt = new Mqtt();
+        Log.Info("Z-Pump constructor done");
     }
     public async Task On()
     {
