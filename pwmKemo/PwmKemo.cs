@@ -1,11 +1,9 @@
 ﻿using NLog;
 using System;
 using System.IO;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
-using Z_PumpControl_Raspi;
 
-namespace GPIO_Control.pwmKemo;
+namespace GPIOControl.PwmKemo;
 
 internal class PwmKemo
 {
@@ -17,7 +15,7 @@ internal class PwmKemo
     const string PwmChip = @"/sys/class/pwm/pwmchip0";
     const string Pwm0 = @"/sys/class/pwm/pwmchip0/pwm0";
 
-    private GlobalProps _globalProps;
+    //private GlobalProps _globalProps;
 
     public string Period { get; set; } = "1000000"; //period 1ms
     public int DutyCycle { get; set; } = 0;
@@ -41,13 +39,12 @@ internal class PwmKemo
                 Log.Info($"       found: {info.Name}");
             }
 
-            //Log.Info($"List Dir: {Pwm0}");
-            //allfiles = Directory.GetFileSystemEntries(Pwm0, "*", SearchOption.TopDirectoryOnly);
-            //foreach (var file in allfiles)
-            //{
-            //    FileInfo info = new FileInfo(file);
-            //    Log.Info($"       found: {info.Name}");
-            //}
+            if (!Directory.Exists(Pwm0))
+            {
+                Log.Info("No pwm0 device -> Write a 0 to export");
+                File.WriteAllText(Path.Combine(PwmChip, "export"), "0");
+                await Task.Delay(500);
+            }
 
             if (Directory.Exists(Pwm0))
             {
@@ -115,20 +112,20 @@ internal class PwmKemo
     //    }
     //}
 
-    public void alarmOff()
-    {
-        _globalProps.FlanschHotAlarm = true;
-        if (Directory.Exists(Pwm0))
-        {
-            File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), "0");
-            Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}");
-        }
-        else
-        {
-            Log.Error(">>>>>>>>>>>>>>>>>>>>   set alarm off failed !!!!!!!");
-            Log.Error("Faild update Pwm0 duty cycle, NO directory");
-        }
-    }
+    //public void alarmOff()
+    //{
+    //    _globalProps.FlanschHotAlarm = true;
+    //    if (Directory.Exists(Pwm0))
+    //    {
+    //        File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), "0");
+    //        Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}");
+    //    }
+    //    else
+    //    {
+    //        Log.Error(">>>>>>>>>>>>>>>>>>>>   set alarm off failed !!!!!!!");
+    //        Log.Error("Faild update Pwm0 duty cycle, NO directory");
+    //    }
+    //}
 
     public async Task loop()
     {

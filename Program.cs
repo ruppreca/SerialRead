@@ -1,31 +1,36 @@
-﻿using GPIO_Control.pwmKemo;
-using NLog;
+﻿using NLog;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Z_PumpControl_Raspi;
 
-
-namespace GPIO_Control;
+namespace GPIOControl;
 
 class Program
 {
     private static Logger Log = LogManager.GetCurrentClassLogger();
-
-
-
+    private static KebaBackgroundService kebaBackgroundService;
+    private static readonly CancellationTokenSource cts = new();
 
     static async Task Main(string[] args)
     {
-        Log.Info($"Look up 2.0: {PowerToPwmLookup.LookUp(2)}");
-        Log.Info($"Look up 40.0: {PowerToPwmLookup.LookUp(40)}");
-        Log.Info($"Look up 216.0: {PowerToPwmLookup.LookUp(216)}");
-        Log.Info($"Look up 315.0: {PowerToPwmLookup.LookUp(315)}");
-
-        Log.Info($"Look up 216.5: {PowerToPwmLookup.LookUp(216)}");
-
-        KebaBackgroundService kebaBackgroundService = new(TimeSpan.FromSeconds(10));
+        Log.Info("Startup Gpio-Control main");
+        kebaBackgroundService = new(TimeSpan.FromSeconds(5));
         await kebaBackgroundService.Start();
+
+        System.Runtime.Loader.AssemblyLoadContext.Default.Unloading += ctx =>
+        {
+            Log.Info("Main Unloading was called");
+            Task stopTask = kebaBackgroundService.StopAsync();
+            stopTask.Wait();
+            cts.Cancel();
+        };
+
+        while (!cts.Token.IsCancellationRequested)
+        {
+            Log.Info("Main still running");
+            await Task.Delay(TimeSpan.FromSeconds(10), cts.Token);
+        }
+        cts.Dispose();  
     }
 
 
@@ -34,7 +39,7 @@ class Program
         private readonly PeriodicTimer timer;
         private readonly CancellationTokenSource cts = new();
         private Task? timerTask;
-        private static readonly PwmKemo _pwmKemo = new();
+        //private static readonly PwmKemo _pwmKemo = new();
 
         public KebaBackgroundService(TimeSpan timerInterval)
         {
@@ -43,20 +48,20 @@ class Program
 
         public async Task Start()
         {
-            Log.Info("KebaBackgroundService do start up");
-            await _pwmKemo.init();
+            //await _pwmKemo.init();
             timerTask = DoWorkAsync();
-            Log.Info("KebaBackgroundService started success");
+            Log.Info("KemoBackgroundService started success");
         }
 
         private async Task DoWorkAsync()
         {
             try
             {
-                while (await timer.WaitForNextTickAsync(cts.Token))
+                while (!cts.Token.IsCancellationRequested && await timer.WaitForNextTickAsync(cts.Token))
                 {
-                    Log.Info(string.Concat("Keba run loop: ", DateTime.Now.ToString("O")));
-                    await _pwmKemo.loop();
+                    Log.Info($"Kemo run loop at: {DateTime.Now.ToString("O")}");
+                    //await _pwmKemo.loop();
+                    await Task.Delay(500);
                 }
             }
             catch (OperationCanceledException)
@@ -75,7 +80,7 @@ class Program
             cts.Cancel();
             await timerTask;
             cts.Dispose();
-            Console.WriteLine("WeatherForecastBackgroundService just stopped");
+            Log.Info("KemoBackgroundService just stopped");
         }
     }
 }
