@@ -34,8 +34,8 @@ internal class Zpump
         {
             _mqtt.publishZ("0");
             _controller.Write(PumpPin, PinValue.High);
-            await Task.Delay(1100);
             Log.Info("Z-PumpPin is on");
+            await Task.Delay(1100);
             _mqtt.publishZ("1");
         }
         catch (Exception ex)
@@ -49,8 +49,8 @@ internal class Zpump
         try
         {
             _mqtt.publishZ("1");
-            _controller.Write(PumpPin, PinValue.Low);
             await Task.Delay(1100);
+            _controller.Write(PumpPin, PinValue.Low);
             Log.Info("Z-PumpPin is off");
             _mqtt.publishZ("0");
         }
@@ -67,7 +67,7 @@ internal class Zpump
         try
         {
             await On();
-            await Task.Delay(sec * 1000 - 2200);
+            await Task.Delay(sec * 1000 - 1100);
             await Off();
             return;
         }

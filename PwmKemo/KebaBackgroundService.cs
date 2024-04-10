@@ -69,7 +69,7 @@ internal class KebaBackgroundService
 
                 if (flanschTemp > _maxFlanshTemp)
                 {
-                    Log.Info($"Heiz Flansch > {_maxFlanshTemp}, run pump for 5 sec");
+                    Log.Info($"Heiz Flansch > {_maxFlanshTemp}, run pump for 4 sec");
                     _zpumpService.PumpTask(4);
                 }
                 if (flanschTemp > _alarmFlanshTemp)
@@ -152,7 +152,7 @@ internal class KebaBackgroundService
             Log.Error($"ParseExact throw: {e.Message} from {result.Time}");
             return (DateTime.MinValue, null);
         }
-        Log.Info($"Stromzähler Date: {msgDate}, Power(W): {result.SML.curr_w}");
+        Log.Debug($"Stromzähler Date: {msgDate}, Power(W): {result.SML.curr_w}");
         return (msgDate, result.SML.curr_w);
     }
 }

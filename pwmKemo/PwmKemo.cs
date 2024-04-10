@@ -117,7 +117,7 @@ internal class PwmKemo
         if (Directory.Exists(Pwm0))
         {
             File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), "0");
-            Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}");
+            Log.Info($"Alarm Off for Device {Pwm0} changed duty cycle {DutyCycle}");
         }
         else
         {

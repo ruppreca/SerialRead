@@ -74,13 +74,13 @@ internal class ZpumpBackgroundService
                 }
 
                 double ww = (double)ReadTemp.ReadWWtemp() / 1000;
-                //Log.Info($"WW temp: {ww:0.00} degC, took) {(DateTime.Now - startime).TotalMilliseconds}ms");
+                Log.Debug($"WW temp: {ww:0.00} degC, took) {(DateTime.Now - startime).TotalMilliseconds}ms");
                 Mqtt.publishWw((ww).ToString());
                 if (cts.Token.IsCancellationRequested) break;
 
                 if (lastTemp1 > 0 && lastTemp2 > 0 && lastTemp2 < 35)  // only check if water is below limit
                 {
-                    //Log.Info($"lastTemp {lastTemp:0.00}, diff: {ww - lastTemp:0.00}");
+                    Log.Info($"lastTemp {lastTemp1:0.00}, diff: {ww - lastTemp1:0.00}");
                     if (ww > lastTemp1 + mindiff && lastTemp1 > lastTemp2 + mindiff)
                     {
                         Log.Info($"WW temp: {ww:0.00} degC, diff above {mindiff} to last {ww - lastTemp1:0.00} and prelast {lastTemp1 - lastTemp2:0.00}");
@@ -141,15 +141,16 @@ internal class ZpumpBackgroundService
     }
 
     Task _runForSec;
-    public void PumpTask(int sec, bool wait = false)  // run Zpump for sec seconds
+    public async void PumpTask(int sec, bool wait = false)  // run Zpump for sec seconds
     {
-        if (_runForSec != null && !_runForSec.IsCompleted)
-        {
-            if(!wait) { return;  }
-            _runForSec.Wait(cts.Token);
-        }
-        _runForSec = Pump.RunForSec(sec);
-        _runForSec.Start();
-        _runForSec.Wait(cts.Token);
+        //if (_runForSec != null && !_runForSec.IsCompleted)
+        //{
+        //    if(!wait) { return;  }
+        //    _runForSec.Wait(cts.Token);
+        //}
+        //_runForSec = Pump.RunForSec(sec);
+        //_runForSec.Start();
+        //_runForSec.Wait(cts.Token);
+        await Pump.RunForSec(sec);
     }
 }
