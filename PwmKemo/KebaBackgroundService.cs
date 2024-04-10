@@ -2,6 +2,7 @@
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using GPIO_Control.Zpump;
 using NLog;
 
 namespace GPIOControl.PwmKemo;
@@ -16,7 +17,7 @@ internal class KebaBackgroundService
     private PwmKemo _pwmKemo;
     private Zpump Pump;
     private Mqtt Mqtt;
-    Task _coolTask;
+    private ZpumpBackgroundService _zpumpService;
 
     private GlobalProps _globalProps;
 
@@ -25,8 +26,9 @@ internal class KebaBackgroundService
         timer = new(timerInterval);
     }
 
-    public async Task Start(GlobalProps globalProps)
+    public async Task Start(GlobalProps globalProps, ZpumpBackgroundService zpumpService)
     {
+        _zpumpService = zpumpService;
         _globalProps = new GlobalProps();
         try
         {
@@ -35,10 +37,6 @@ internal class KebaBackgroundService
             await _pwmKemo.init(_globalProps);
             Log.Debug("New pwmKemo, init done");
 
-            Pump = new();
-            _coolTask = Pump.RunForSec(5);
-            Log.Debug("New Pump");
-            
             Mqtt = new();
             Mqtt.subscribe("strom/zaehler/SENSOR", ReceivedFromSubcribe);
             Log.Debug("New Mqtt and subscribe");
@@ -59,11 +57,12 @@ internal class KebaBackgroundService
    
     private async Task DoWorkAsync()
     {
+        Log.Info("Kemo run DoWorkAsync");
         try
         {
             while (!cts.Token.IsCancellationRequested && await timer.WaitForNextTickAsync(cts.Token))
             {
-                Log.Info("Kemo run DoWorkAsync");
+               
                 double flanschTemp = ReadTemp.Read1WireTemp("28-000000a851b8");  //Flansch am Heizstab
                 Log.Info($"Heater flansch temp: {flanschTemp}°C at {DateTime.Now}");
                 Mqtt.publishHotFlansch((flanschTemp).ToString());
@@ -71,11 +70,7 @@ internal class KebaBackgroundService
                 if (flanschTemp > _maxFlanshTemp)
                 {
                     Log.Info($"Heiz Flansch > {_maxFlanshTemp}, run pump for 5 sec");
-                    if (!_coolTask.IsCompleted)
-                    {
-                        _coolTask.Wait();
-                    }
-                    _coolTask.Start();
+                    _zpumpService.PumpTask(4);
                 }
                 if (flanschTemp > _alarmFlanshTemp)
                 {
@@ -86,12 +81,14 @@ internal class KebaBackgroundService
                 }
 
                 await _pwmKemo.loop();
-                Log.Info("Keba run loop done");
+                Log.Debug("Keba run loop done");
             }
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
-
+            Log.Error("Exception in KemoBackgroundService DoWorkAsync");
+            Log.Error($"Ex. message: {ex.Message}");
+            throw;
         }
     }
 

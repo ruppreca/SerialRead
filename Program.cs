@@ -3,6 +3,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using GPIOControl.PwmKemo;
+using GPIO_Control.Zpump;
 
 namespace GPIOControl;
 
@@ -10,19 +11,25 @@ class Program
 {
     private static Logger Log = LogManager.GetCurrentClassLogger();
     private static KebaBackgroundService kebaBackgroundService;
+    private static ZpumpBackgroundService zpumpBackgroundService;
     private static readonly CancellationTokenSource cts = new();
     public  static GlobalProps _globalProps = new();
 
     static async Task Main(string[] args)
     {
         Log.Info("Startup Gpio-Control main");
+
         kebaBackgroundService = new(TimeSpan.FromSeconds(5));
-        await kebaBackgroundService.Start(_globalProps);
+        zpumpBackgroundService = new(TimeSpan.FromSeconds(5));
+        await kebaBackgroundService.Start(_globalProps, zpumpBackgroundService);
+        await zpumpBackgroundService.Start();
 
         System.Runtime.Loader.AssemblyLoadContext.Default.Unloading += ctx =>
         {
             Log.Info("Main Unloading was called");
             Task stopTask = kebaBackgroundService.StopAsync();
+            stopTask.Wait();
+            stopTask = zpumpBackgroundService.StopAsync();
             stopTask.Wait();
             cts.Cancel();
         };

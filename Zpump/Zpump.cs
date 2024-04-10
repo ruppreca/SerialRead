@@ -1,10 +1,11 @@
-﻿using NLog;
+﻿using GPIOControl;
+using NLog;
 using System;
 using System.Device.Gpio;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GPIOControl;
+namespace GPIO_Control.Zpump;
 
 internal class Zpump
 {
@@ -66,7 +67,7 @@ internal class Zpump
         try
         {
             await On();
-            await Task.Delay((sec * 1000) - 2200);
+            await Task.Delay(sec * 1000 - 2200);
             await Off();
             return;
         }
