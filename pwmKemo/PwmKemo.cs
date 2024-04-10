@@ -9,26 +9,25 @@ internal class PwmKemo
 {
     private static Logger Log = LogManager.GetCurrentClassLogger();
 
-    //private static Mqtt _mqtt;
+    private static Mqtt _mqtt;
     const int PcmPin = 18; //GPIO18 is pin 12 on RPi, is used as PCM0 output pin / /sys/class/pwm/pwmchip0
 
     const string PwmChip = @"/sys/class/pwm/pwmchip0";
     const string Pwm0 = @"/sys/class/pwm/pwmchip0/pwm0";
 
-    //private GlobalProps _globalProps;
+    private GlobalProps _globalProps;
 
     public string Period { get; set; } = "1000000"; //period 1ms
     public int DutyCycle { get; set; } = 0;
     public int HeaterPower { get; set; } = 0;
     public PwmKemo()
     {
-        //_mqtt = new Mqtt();
+        _mqtt = new Mqtt();
     }
 
-    //public async Task init(GlobalProps globalProps)
-    public async Task init()
+    public async Task init(GlobalProps globalProps)
     {
-       // _globalProps = globalProps;
+        _globalProps = globalProps;
         try
         {
             Log.Info($"List Dir: {PwmChip}");
