@@ -111,20 +111,20 @@ internal class PwmKemo
     //    }
     //}
 
-    //public void alarmOff()
-    //{
-    //    _globalProps.FlanschHotAlarm = true;
-    //    if (Directory.Exists(Pwm0))
-    //    {
-    //        File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), "0");
-    //        Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}");
-    //    }
-    //    else
-    //    {
-    //        Log.Error(">>>>>>>>>>>>>>>>>>>>   set alarm off failed !!!!!!!");
-    //        Log.Error("Faild update Pwm0 duty cycle, NO directory");
-    //    }
-    //}
+    public void alarmOff()
+    {
+        _globalProps.FlanschHotAlarm = true;
+        if (Directory.Exists(Pwm0))
+        {
+            File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), "0");
+            Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}");
+        }
+        else
+        {
+            Log.Error(">>>>>>>>>>>>>>>>>>>>   set alarm off failed !!!!!!!");
+            Log.Error("Faild update Pwm0 duty cycle, NO directory");
+        }
+    }
 
     public async Task loop()
     {
@@ -132,16 +132,18 @@ internal class PwmKemo
         {
             if (Directory.Exists(Pwm0))
             {
-                if (DutyCycle > 900000)
+                if (DutyCycle > 900000 || HeaterPower > 300)
                 {
+                    HeaterPower = 0;
                     DutyCycle = 0;
                 }
                 else
                 {
-                    DutyCycle += 100000;
+                    HeaterPower += 20;
+                    DutyCycle = PowerToPwmLookup.LookUp(HeaterPower);
                 }
                 File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), DutyCycle.ToString());
-                Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}");
+                Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}, HeaterPower: {HeaterPower}");
                 await Task.Delay(100);
             }
         }

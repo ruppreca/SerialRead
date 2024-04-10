@@ -15,9 +15,17 @@ internal class Zpump
 
     public Zpump()
     {
-        _controller.OpenPin(PumpPin, PinMode.Output);
-        _mqtt = new Mqtt();
-        Log.Info("Z-Pump constructor done");
+        try
+        {
+            _controller.OpenPin(PumpPin, PinMode.Output);
+            _mqtt = new Mqtt();
+            Log.Info("Z-Pump constructor done");
+        }
+        catch (Exception ex)
+        {
+            Log.Info("Exeption faild construct Zpump");
+            Log.Error($"{ex.Message}");
+        }
     }
     public async Task On()
     {
@@ -26,12 +34,12 @@ internal class Zpump
             _mqtt.publishZ("0");
             _controller.Write(PumpPin, PinValue.High);
             await Task.Delay(1100);
-            //Log.Info("Z-PumpPin is on");
+            Log.Info("Z-PumpPin is on");
             _mqtt.publishZ("1");
         }
         catch (Exception ex)
         {
-            Log.Info("Exeption faild to swich Z-Pump on");
+            Log.Error("Exeption failed to swich Z-Pump on");
             Log.Error($"{ex.Message}");
         }
     }
@@ -42,12 +50,12 @@ internal class Zpump
             _mqtt.publishZ("1");
             _controller.Write(PumpPin, PinValue.Low);
             await Task.Delay(1100);
-            //Log.Info("Z-PumpPin is off");
+            Log.Info("Z-PumpPin is off");
             _mqtt.publishZ("0");
         }
         catch (Exception ex)
         {
-            Log.Info("Exeption faild to swich Z-Pump off");
+            Log.Error("Exeption failed to swich Z-Pump off");
             Log.Error($"{ex.Message}");
         }
     }

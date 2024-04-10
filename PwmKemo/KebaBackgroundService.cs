@@ -16,6 +16,7 @@ internal class KebaBackgroundService
     private PwmKemo _pwmKemo;
     private Zpump Pump;
     private Mqtt Mqtt;
+    Task _coolTask;
 
     private GlobalProps _globalProps;
 
@@ -35,6 +36,7 @@ internal class KebaBackgroundService
             Log.Debug("New pwmKemo, init done");
 
             Pump = new();
+            _coolTask = Pump.RunForSec(5);
             Log.Debug("New Pump");
             
             Mqtt = new();
@@ -51,9 +53,9 @@ internal class KebaBackgroundService
         }
     }
 
-    int _maxFlanshTemp = 85;
+    int _maxFlanshTemp = 65;
     int _alarmFlanshTemp = 90;
-    //Task coolTask = Pump.RunForSec(5);
+    
    
     private async Task DoWorkAsync()
     {
@@ -66,22 +68,22 @@ internal class KebaBackgroundService
                 Log.Info($"Heater flansch temp: {flanschTemp}°C at {DateTime.Now}");
                 Mqtt.publishHotFlansch((flanschTemp).ToString());
 
-                //if (flanschTemp > _maxFlanshTemp)
-                //{
-                //    Log.Info($"Heiz Flansch > {_maxFlanshTemp}, run pump for 5 sec");
-                //    if (!coolTask.IsCompleted)
-                //    {
-                //        coolTask.Wait();
-                //    }
-                //    coolTask.Start();
-                //}
-                //if (flanschTemp > _alarmFlanshTemp)
-                //{
-                //    Log.Error($"Heiz Flansch ALARRM Temp: {flanschTemp}°C, heater OFF");
-                //    _globalProps.FlanschHotAlarm = true;
-                //    _pwmKemo.alarmOff();
-                //    await Pump.RunForSec(300);
-                //}
+                if (flanschTemp > _maxFlanshTemp)
+                {
+                    Log.Info($"Heiz Flansch > {_maxFlanshTemp}, run pump for 5 sec");
+                    if (!_coolTask.IsCompleted)
+                    {
+                        _coolTask.Wait();
+                    }
+                    _coolTask.Start();
+                }
+                if (flanschTemp > _alarmFlanshTemp)
+                {
+                    Log.Error($"Heiz Flansch ALARRM Temp: {flanschTemp}°C, heater OFF");
+                    _globalProps.FlanschHotAlarm = true;
+                    _pwmKemo.alarmOff();
+                    await Pump.RunForSec(300);
+                }
 
                 await _pwmKemo.loop();
                 Log.Info("Keba run loop done");
@@ -95,6 +97,7 @@ internal class KebaBackgroundService
 
     public async Task StopAsync()
     {
+        _pwmKemo.HeaterPower = 0;
         if (timerTask is null)
         {
             return;
