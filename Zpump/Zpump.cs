@@ -14,6 +14,8 @@ internal class Zpump
     private static Mqtt _mqtt;
     const int PumpPin = 24; //GPIO24 is pin 18 on RPi, Switches on the Solidstate Relais für pump
 
+    bool IsPumpOn = false;
+
     public Zpump()
     {
         try
@@ -61,14 +63,38 @@ internal class Zpump
         }
     }
 
+    DateTime _pumpStartTime;
     public async Task RunForSec(int sec)
     {
+        int extraSec = 0;
         sec = sec < 3 ? 3 : sec;
         try
         {
-            await On();
-            await Task.Delay(sec * 1000 - 1100);
+            if(IsPumpOn)
+            {
+
+                extraSec = (int)(DateTime.Now - _pumpStartTime).TotalSeconds;
+                while (IsPumpOn)
+                {
+                    await Task.Delay(500);
+                }
+            }
+            else
+            {
+                _pumpStartTime = DateTime.Now;
+                IsPumpOn = true;
+                await On();
+                await Task.Delay(sec * 1000 - 1100);
+            }
+            if (extraSec > 0)
+            {
+                Log.Info($"Add extra runtime for pump by {extraSec}");
+                IsPumpOn = true;
+                await On();
+                await Task.Delay(extraSec * 1000);
+            }
             await Off();
+            IsPumpOn = false;
             return;
         }
         catch (Exception ex)

@@ -66,5 +66,11 @@ namespace GPIOControl
             var r = _client?.Publish("HomeTemp/Flansch", Encoding.UTF8.GetBytes(value), MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, false);
             //Log.Info($"Publish Ww returns {r}");
         }
+
+        public void publishHeaterPower(string value)
+        {
+            var r = _client?.Publish("HomeTemp/HeaterPower", Encoding.UTF8.GetBytes(value), MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, false);
+            //Log.Info($"Publish Ww returns {r}");
+        }
     }
 }

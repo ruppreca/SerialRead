@@ -21,7 +21,7 @@ class Program
 
         kebaBackgroundService = new(TimeSpan.FromSeconds(5));
         zpumpBackgroundService = new(TimeSpan.FromSeconds(5));
-        await kebaBackgroundService.Start(_globalProps, zpumpBackgroundService);
+        await kebaBackgroundService.Start(_globalProps);
         await zpumpBackgroundService.Start();
 
         System.Runtime.Loader.AssemblyLoadContext.Default.Unloading += ctx =>

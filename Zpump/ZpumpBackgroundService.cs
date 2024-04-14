@@ -17,7 +17,6 @@ internal class ZpumpBackgroundService
     private Zpump Pump;
     private Mqtt Mqtt;
 
-    private const double mindiff = 0.9;   // soll 0.6 ?
     private const int PumpTime = 240; //Z-Pump on time in s
 
     public ZpumpBackgroundService(TimeSpan timerInterval)
@@ -42,8 +41,20 @@ internal class ZpumpBackgroundService
             Log.Error("ZpumpBackgroundService failed to init");
             throw;
         }
+
+
+
+        //// Test extra Pump runtime
+        //var Start = DateTime.Now;
+        //Log.Info($"Test 1 Start Pump for {20}sec at {DateTime.Now}");
+        //Pump.RunForSec(20);
+        //await Task.Delay(10000); // 10ces
+        //Log.Info($"Test 2 Start Pump for {20}sec at {DateTime.Now}");
+        //await Pump.RunForSec(20);
+        //Log.Info($"Total Pump Time is { (DateTime.Now - Start).TotalSeconds }");
     }
 
+    private const double mindiff = 0.8;   // soll 0.6 ?
     private async Task DoWorkAsync()
     {
         bool isBelow35 = false;
@@ -73,28 +84,21 @@ internal class ZpumpBackgroundService
                     isPause = false;
                 }
 
-                double ww = (double)ReadTemp.ReadWWtemp() / 1000;
+                double ww = ReadTemp.Read1WireTemp("28-000000a84439");
                 Log.Debug($"WW temp: {ww:0.00} degC, took) {(DateTime.Now - startime).TotalMilliseconds}ms");
                 Mqtt.publishWw((ww).ToString());
                 if (cts.Token.IsCancellationRequested) break;
 
-                if (lastTemp1 > 0 && lastTemp2 > 0 && lastTemp2 < 35)  // only check if water is below limit
+                if (lastTemp1 > 0 && lastTemp2 > 0 && lastTemp2 < 37)  // only check if water is below limit
                 {
-                    Log.Info($"lastTemp {lastTemp1:0.00}, diff: {ww - lastTemp1:0.00}");
+                    Log.Info($"Temp {ww:0.00}, lastTemp {lastTemp1:0.00}, diff: {ww - lastTemp1:0.00}");
                     if (ww > lastTemp1 + mindiff && lastTemp1 > lastTemp2 + mindiff)
                     {
                         Log.Info($"WW temp: {ww:0.00} degC, diff above {mindiff} to last {ww - lastTemp1:0.00} and prelast {lastTemp1 - lastTemp2:0.00}");
 
                         Log.Info($"Start Pump for {PumpTime}sec");
-                        PumpTask(PumpTime, wait: true);
+                        await Pump.RunForSec(PumpTime);
                         if (cts.Token.IsCancellationRequested) break;
-
-                        //var pump = Task.Run(() => Pump.RunForSec(PumpTime));
-                        //while (!pump.IsCompleted)
-                        //{
-                        //    if (quit) break;
-                        //    await Task.Delay(1000);
-                        //}
                         Log.Info($"Stopped Pump \n");
 
                         // reset temp values after run time
@@ -138,19 +142,5 @@ internal class ZpumpBackgroundService
         await timerTask;
         cts.Dispose();
         Log.Info("ZpumpBackgroundService just stopped");
-    }
-
-    Task _runForSec;
-    public async void PumpTask(int sec, bool wait = false)  // run Zpump for sec seconds
-    {
-        //if (_runForSec != null && !_runForSec.IsCompleted)
-        //{
-        //    if(!wait) { return;  }
-        //    _runForSec.Wait(cts.Token);
-        //}
-        //_runForSec = Pump.RunForSec(sec);
-        //_runForSec.Start();
-        //_runForSec.Wait(cts.Token);
-        await Pump.RunForSec(sec);
     }
 }

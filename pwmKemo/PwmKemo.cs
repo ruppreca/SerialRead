@@ -30,13 +30,13 @@ internal class PwmKemo
         _globalProps = globalProps;
         try
         {
-            Log.Info($"List Dir: {PwmChip}");
-            string[] allfiles = Directory.GetFileSystemEntries(PwmChip, "*", SearchOption.TopDirectoryOnly);
-            foreach (var file in allfiles)
-            {
-                FileInfo info = new FileInfo(file);
-                Log.Info($"       found: {info.Name}");
-            }
+            //Log.Info($"List Dir: {PwmChip}");
+            //string[] allfiles = Directory.GetFileSystemEntries(PwmChip, "*", SearchOption.TopDirectoryOnly);
+            //foreach (var file in allfiles)
+            //{
+            //    FileInfo info = new FileInfo(file);
+            //    Log.Info($"       found: {info.Name}");
+            //}
 
             if (!Directory.Exists(Pwm0))
             {
@@ -62,54 +62,55 @@ internal class PwmKemo
         }
     }
 
-    double k = 0.7; // control factor
-    //public void controlPower(int powerConsumed) // is the power readout from Stromzähler
-    //{
-    //    try
-    //    {
-    //        if (_globalProps.FlanschHotAlarm)
-    //        {
-    //            DutyCycle = 0;
-    //        }
-    //        else if (powerConsumed > 0) // reduce heater power
-    //        {
-    //            if (powerConsumed > HeaterPower)
-    //            {
-    //                DutyCycle = 0;
-    //            }
-    //            else
-    //            {
-    //                HeaterPower -= (int)(powerConsumed * k);
-    //            }
-    //            Log.Info($"Heater power reduced to {HeaterPower}");
-    //        }
-    //        else if (powerConsumed < -3 ) // increase heater power
-    //        {
-    //            HeaterPower -= (int)(powerConsumed * k);
-    //            HeaterPower = HeaterPower > 318 ? 318 : HeaterPower;
-    //            Log.Info($"Heater power increased to {HeaterPower}");
-    //        }
+    double k = 0.8; // control factor
+    public int controlPower(int powerConsumed) // is the power readout from Stromzähler
+    {
+        try
+        {
+            if (_globalProps.FlanschHotAlarm)
+            {
+                DutyCycle = 0;
+            }
+            else if (powerConsumed > 0) // reduce heater power
+            {
+                if (powerConsumed > HeaterPower)
+                {
+                    DutyCycle = 0;
+                }
+                else
+                {
+                    HeaterPower -= (int)(powerConsumed * k);
+                }
+                Log.Info($"Heater power reduced to {HeaterPower}, consumed {powerConsumed}");
+            }
+            else if (powerConsumed < -4) // increase heater power
+            {
+                HeaterPower -= (int)(powerConsumed * k);
+                HeaterPower = HeaterPower > 318 ? 318 : HeaterPower;
+                Log.Info($"Heater power increased to {HeaterPower}, consumed {powerConsumed}");
+            }
 
-    //        HeaterPower = HeaterPower < 0 ? 0 : HeaterPower;
-    //        if (Directory.Exists(Pwm0))
-    //        {
-    //            DutyCycle = PowerToPwmLookup.LookUp(HeaterPower);
+            HeaterPower = HeaterPower < 0 ? 0 : HeaterPower;
+            if (Directory.Exists(Pwm0))
+            {
+                DutyCycle = PowerToPwmLookup.LookUp(HeaterPower);
 
-    //            File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), DutyCycle.ToString());
-    //            Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}");
-    //        }
-    //        else
-    //        {
-    //            Log.Error("Faild update Pwm0 duty cycle, NO directory");
-    //        }
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        Log.Error("Exeption faild update Pwm0 duty cycle");
-    //        Log.Error($"{ex.Message}");
-    //        throw;
-    //    }
-    //}
+                File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), DutyCycle.ToString());
+                Log.Debug($"Device {Pwm0} changed duty cycle {DutyCycle}");
+            }
+            else
+            {
+                Log.Error("Faild update Pwm0 duty cycle, NO directory");
+            }
+            return HeaterPower;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Exeption faild update Pwm0 duty cycle");
+            Log.Error($"{ex.Message}");
+            throw;
+        }
+    }
 
     public void alarmOff()
     {
@@ -117,7 +118,8 @@ internal class PwmKemo
         if (Directory.Exists(Pwm0))
         {
             File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), "0");
-            Log.Info($"Alarm Off for Device {Pwm0} changed duty cycle {DutyCycle}");
+            File.WriteAllText(Path.Combine(Pwm0, "enable"), "0");
+            Log.Info($"Alarm Off for Device {Pwm0} changed duty cycle {DutyCycle}, enable to 0");
         }
         else
         {

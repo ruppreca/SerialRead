@@ -37,7 +37,7 @@ internal static class ReadTemp
             var data = File.ReadAllText(path);
             if (int.TryParse(data, out var value))
             {
-                return value/1000;
+                return (double)value/1000;
             }
             Log.Error($"Failed to parse to int: {data}");
             return -155.0;
