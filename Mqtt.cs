@@ -57,7 +57,7 @@ namespace GPIOControl
 
         public void publishWw(string value)
         {
-            var r = _client?.Publish("HomeTemp/WWtemp", Encoding.UTF8.GetBytes(value), MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, false);
+            var r = _client?.Publish("HomeTemp/Siphon", Encoding.UTF8.GetBytes(value), MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, false);
             //Log.Info($"Publish Ww returns {r}");
         }
 

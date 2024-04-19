@@ -62,6 +62,7 @@ internal class PwmKemo
         }
     }
 
+    private const int wantedInfeedpower = 3;
     double k = 0.8; // control factor
     public int controlPower(int powerConsumed) // is the power readout from Stromzähler
     {
@@ -75,7 +76,7 @@ internal class PwmKemo
             {
                 if (powerConsumed > HeaterPower)
                 {
-                    DutyCycle = 0;
+                    HeaterPower = 0;
                 }
                 else
                 {
@@ -83,14 +84,14 @@ internal class PwmKemo
                 }
                 Log.Info($"Heater power reduced to {HeaterPower}, consumed {powerConsumed}");
             }
-            else if (powerConsumed < -4) // increase heater power
+            else if (powerConsumed <= -wantedInfeedpower) // increase heater power
             {
-                HeaterPower -= (int)(powerConsumed * k);
+                HeaterPower -= (int)((powerConsumed + wantedInfeedpower) * k);
                 HeaterPower = HeaterPower > 318 ? 318 : HeaterPower;
                 Log.Info($"Heater power increased to {HeaterPower}, consumed {powerConsumed}");
             }
 
-            HeaterPower = HeaterPower < 0 ? 0 : HeaterPower;
+            HeaterPower = HeaterPower <= 0 ? 0 : HeaterPower;
             if (Directory.Exists(Pwm0))
             {
                 DutyCycle = PowerToPwmLookup.LookUp(HeaterPower);

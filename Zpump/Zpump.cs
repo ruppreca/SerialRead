@@ -12,7 +12,8 @@ internal class Zpump
     private static Logger Log = LogManager.GetCurrentClassLogger();
     private static GpioController _controller = new();
     private static Mqtt _mqtt;
-    const int PumpPin = 24; //GPIO24 is pin 18 on RPi, Switches on the Solidstate Relais für pump
+    const int PumpPin = 24; //GPIO24 is pin 18 on RPi, Switches on the Solidstate Relais für Zpump
+    const int KemoPin = 23; //GPIO23 is pin 16 on RPi, Switches on the Solidstate Relais for Kemo Control Heizstab
 
     bool IsPumpOn = false;
 

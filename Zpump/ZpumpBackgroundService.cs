@@ -54,7 +54,9 @@ internal class ZpumpBackgroundService
         //Log.Info($"Total Pump Time is { (DateTime.Now - Start).TotalSeconds }");
     }
 
-    private const double mindiff = 0.8;   // soll 0.6 ?
+    private const double mindiff = 1;
+    private const int lowerTlimit = 35;
+
     private async Task DoWorkAsync()
     {
         bool isBelow35 = false;
@@ -86,10 +88,10 @@ internal class ZpumpBackgroundService
 
                 double ww = ReadTemp.Read1WireTemp("28-000000a84439");
                 Log.Debug($"WW temp: {ww:0.00} degC, took) {(DateTime.Now - startime).TotalMilliseconds}ms");
-                Mqtt.publishWw((ww).ToString());
+                Mqtt.publishWw(ww.ToString());
                 if (cts.Token.IsCancellationRequested) break;
 
-                if (lastTemp1 > 0 && lastTemp2 > 0 && lastTemp2 < 37)  // only check if water is below limit
+                if (lastTemp1 > 0 && lastTemp2 > 0 && lastTemp2 < lowerTlimit)  // only check if water is below limit
                 {
                     Log.Info($"Temp {ww:0.00}, lastTemp {lastTemp1:0.00}, diff: {ww - lastTemp1:0.00}");
                     if (ww > lastTemp1 + mindiff && lastTemp1 > lastTemp2 + mindiff)
@@ -107,14 +109,14 @@ internal class ZpumpBackgroundService
                     }
                 }
 
-                if (!isBelow35 && ww < 35)
+                if (!isBelow35 && ww < lowerTlimit)
                 {
-                    Log.Info($"Now below 35 {ww:0.00}");
+                    Log.Info($"Now below {lowerTlimit}: {ww:0.00}");
                     isBelow35 = true;
                 }
                 else if (isBelow35 && lastTemp2 > 35)
                 {
-                    Log.Info($"Now above 35 {ww:0.00}");
+                    Log.Info($"Now above {lowerTlimit}: {ww:0.00}");
                     isBelow35 = false;
                 }
                 lastTemp2 = lastTemp1;
