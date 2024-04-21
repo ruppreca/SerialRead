@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace GPIO_Control.Zpump;
 
-internal class Zpump
+internal class GpioPins
 {
     private static Logger Log = LogManager.GetCurrentClassLogger();
     private static GpioController _controller = new();
@@ -16,12 +16,14 @@ internal class Zpump
     const int KemoPin = 23; //GPIO23 is pin 16 on RPi, Switches on the Solidstate Relais for Kemo Control Heizstab
 
     bool IsPumpOn = false;
+    bool _kemoIsOn = false;
 
-    public Zpump()
+    public GpioPins()
     {
         try
         {
             _controller.OpenPin(PumpPin, PinMode.Output);
+            _controller.OpenPin(KemoPin, PinMode.Output);
             _mqtt = new Mqtt();
             Log.Info("Z-Pump constructor done");
         }
@@ -43,7 +45,7 @@ internal class Zpump
         }
         catch (Exception ex)
         {
-            Log.Error("Exeption failed to swich Z-Pump on");
+            Log.Error("Exeption: failed to swich Z-Pump on");
             Log.Error($"{ex.Message}");
         }
     }
@@ -59,7 +61,7 @@ internal class Zpump
         }
         catch (Exception ex)
         {
-            Log.Error("Exeption failed to swich Z-Pump off");
+            Log.Error("Exeption: failed to swich Z-Pump off");
             Log.Error($"{ex.Message}");
         }
     }
@@ -102,6 +104,42 @@ internal class Zpump
         {
 
             Log.Info($"Failed to run Z-Pump for {sec}sec");
+            Log.Error($"{ex.Message}");
+        }
+    }
+
+    public void KemoOn()
+    {
+        try
+        {
+            if (!_kemoIsOn)
+            {
+                _controller.Write(KemoPin, PinValue.High);
+                _kemoIsOn = true;
+                Log.Info("Kemo-Pin is on");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Exeption: failed to swich Kemo-Pin on");
+            Log.Error($"{ex.Message}");
+        }
+    }
+
+    public void KemoOff()
+    {
+        try
+        {
+            if (_kemoIsOn)
+            {
+                _controller.Write(KemoPin, PinValue.Low);
+                _kemoIsOn = false;
+                Log.Info("Kemo-Pin is off");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Exeption: failed to swich Kemo-Pin off");
             Log.Error($"{ex.Message}");
         }
     }

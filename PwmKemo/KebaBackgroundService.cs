@@ -15,7 +15,7 @@ internal class KebaBackgroundService
     private static Logger Log = LogManager.GetCurrentClassLogger();
 
     private PwmKemo _pwmKemo;
-    private Zpump Pump;
+    private GpioPins Gpio;
     private Mqtt Mqtt;
 
 
@@ -31,16 +31,16 @@ internal class KebaBackgroundService
         _globalProps = new GlobalProps();
         try
         {
-            Log.Debug("KemoBackgroundService do start up");
-            _pwmKemo = new();
-            await _pwmKemo.init(_globalProps);
-            Log.Debug("New pwmKemo, init done");
-
             Mqtt = new();
             Mqtt.subscribe("strom/zaehler/SENSOR", ReceivedFromSubcribe);
             Log.Debug("New Mqtt and subscribe");
-            Pump = new();
-            Log.Debug("New Pump");
+            Gpio = new();
+            Log.Debug("New Gpio");
+
+            Log.Debug("KemoBackgroundService do start up");
+            _pwmKemo = new(Gpio);
+            await _pwmKemo.init(_globalProps);
+            Log.Debug("New pwmKemo, init done");
 
             timerTask = DoWorkAsync();
             Log.Info("KemoBackgroundService started success");
@@ -52,7 +52,7 @@ internal class KebaBackgroundService
         }
     }
 
-    int _maxFlanshTemp = 70;
+    int _maxFlanshTemp = 85;
     int _alarmFlanshTemp = 90;
     
    
@@ -71,14 +71,14 @@ internal class KebaBackgroundService
                 if (flanschTemp > _maxFlanshTemp)
                 {
                     Log.Info($"Heiz Flansch > {_maxFlanshTemp}, run pump for 6 sec");
-                    await Pump.RunForSec(6);
+                    await Gpio.RunForSec(6);
                 }
                 if (flanschTemp > _alarmFlanshTemp)
                 {
                     Log.Error($"Heiz Flansch ALARRM Temp: {flanschTemp}°C, heater OFF");
                     _globalProps.FlanschHotAlarm = true;
                     _pwmKemo.alarmOff();
-                    await Pump.RunForSec(300);
+                    await Gpio.RunForSec(300);
                 }
             }
         }
@@ -104,6 +104,7 @@ internal class KebaBackgroundService
         Log.Info("KemoBackgroundService just stopped");
     }
 
+    private int _lastPower = 0;
     public void ReceivedFromSubcribe(string message)
     {
         var now = DateTime.Now;
@@ -112,16 +113,21 @@ internal class KebaBackgroundService
         if (power.HasValue && time - now < TimeSpan.FromSeconds(10))
         {
             Log.Debug($"Time OK, power {power}");
-            if (power > -1000 && power < 16000)
+            if (power > -1000 && power < 16000)  // only if power changed
             {
-                heaterpower = _pwmKemo.controlPower((int)power);
+                if(_lastPower != power)
+                {
+                    heaterpower = _pwmKemo.controlPower((int)power);
+                    _lastPower = (int)power;
+                    Mqtt.publishHeaterPower(heaterpower.ToString());
+                }        
             }
             else
             {
-                heaterpower = _pwmKemo.controlPower(0);
+                Log.Error($"Inplausable power from Zähler: {power}");
+                heaterpower = _pwmKemo.controlPower(2000); // power 2000 Watt will stop Heater
+                Mqtt.publishHeaterPower(heaterpower.ToString());
             }
-            Mqtt.publishHeaterPower(heaterpower.ToString());
-            return;
         }
     }
 

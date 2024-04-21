@@ -14,7 +14,7 @@ internal class ZpumpBackgroundService
     private Task? timerTask;
     private static Logger Log = LogManager.GetCurrentClassLogger();
 
-    private Zpump Pump;
+    private GpioPins Pump;
     private Mqtt Mqtt;
 
     private const int PumpTime = 240; //Z-Pump on time in s
@@ -93,7 +93,7 @@ internal class ZpumpBackgroundService
 
                 if (lastTemp1 > 0 && lastTemp2 > 0 && lastTemp2 < lowerTlimit)  // only check if water is below limit
                 {
-                    Log.Info($"Temp {ww:0.00}, lastTemp {lastTemp1:0.00}, diff: {ww - lastTemp1:0.00}");
+                    Log.Debug($"Temp {ww:0.00}, lastTemp {lastTemp1:0.00}, diff: {ww - lastTemp1:0.00}");
                     if (ww > lastTemp1 + mindiff && lastTemp1 > lastTemp2 + mindiff)
                     {
                         Log.Info($"WW temp: {ww:0.00} degC, diff above {mindiff} to last {ww - lastTemp1:0.00} and prelast {lastTemp1 - lastTemp2:0.00}");

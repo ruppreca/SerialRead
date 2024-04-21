@@ -1,4 +1,5 @@
-﻿using NLog;
+﻿using GPIO_Control.Zpump;
+using NLog;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -9,20 +10,22 @@ internal class PwmKemo
 {
     private static Logger Log = LogManager.GetCurrentClassLogger();
 
-    private static Mqtt _mqtt;
+    
+    private GpioPins Gpio;
     const int PcmPin = 18; //GPIO18 is pin 12 on RPi, is used as PCM0 output pin / /sys/class/pwm/pwmchip0
 
     const string PwmChip = @"/sys/class/pwm/pwmchip0";
     const string Pwm0 = @"/sys/class/pwm/pwmchip0/pwm0";
 
     private GlobalProps _globalProps;
+    private DateTime _lastHeaterTime = DateTime.Now;
 
     public string Period { get; set; } = "1000000"; //period 1ms
     public int DutyCycle { get; set; } = 0;
     public int HeaterPower { get; set; } = 0;
-    public PwmKemo()
+    public PwmKemo(GpioPins gpio)
     {
-        _mqtt = new Mqtt();
+        Gpio = gpio;
     }
 
     public async Task init(GlobalProps globalProps)
@@ -37,6 +40,11 @@ internal class PwmKemo
             //    FileInfo info = new FileInfo(file);
             //    Log.Info($"       found: {info.Name}");
             //}
+
+            if (Gpio!= null)
+            {
+                Gpio.KemoOn();
+            }
 
             if (!Directory.Exists(Pwm0))
             {
@@ -62,8 +70,8 @@ internal class PwmKemo
         }
     }
 
-    private const int wantedInfeedpower = 3;
-    double k = 0.8; // control factor
+    private const int wantedInfeedpower = 10;
+    double k = 0.6; // control factor
     public int controlPower(int powerConsumed) // is the power readout from Stromzähler
     {
         try
@@ -103,6 +111,19 @@ internal class PwmKemo
             {
                 Log.Error("Faild update Pwm0 duty cycle, NO directory");
             }
+
+            if(HeaterPower > 1)
+            {
+                Gpio.KemoOn();
+                _lastHeaterTime = DateTime.Now;
+            }
+            else
+            {
+                if (DateTime.Now - _lastHeaterTime > TimeSpan.FromMinutes(2))
+                {
+                    Gpio.KemoOff(); // Switch of after 2min of not heating
+                }
+            }
             return HeaterPower;
         }
         catch (Exception ex)
@@ -116,6 +137,7 @@ internal class PwmKemo
     public void alarmOff()
     {
         _globalProps.FlanschHotAlarm = true;
+        Gpio.KemoOff();
         if (Directory.Exists(Pwm0))
         {
             File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), "0");
@@ -129,32 +151,33 @@ internal class PwmKemo
         }
     }
 
-    public async Task loop()
-    {
-        try
-        {
-            if (Directory.Exists(Pwm0))
-            {
-                if (DutyCycle > 900000 || HeaterPower > 300)
-                {
-                    HeaterPower = 0;
-                    DutyCycle = 0;
-                }
-                else
-                {
-                    HeaterPower += 20;
-                    DutyCycle = PowerToPwmLookup.LookUp(HeaterPower);
-                }
-                File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), DutyCycle.ToString());
-                Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}, HeaterPower: {HeaterPower}");
-                await Task.Delay(100);
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Exeption faild to swich Z-Pump off");
-            Log.Error($"{ex.Message}");
-            throw;
-        }
-    }
+    // was used for testing
+    //public async Task loop()
+    //{
+    //    try
+    //    {
+    //        if (Directory.Exists(Pwm0))
+    //        {
+    //            if (DutyCycle > 900000 || HeaterPower > 300)
+    //            {
+    //                HeaterPower = 0;
+    //                DutyCycle = 0;
+    //            }
+    //            else
+    //            {
+    //                HeaterPower += 20;
+    //                DutyCycle = PowerToPwmLookup.LookUp(HeaterPower);
+    //            }
+    //            File.WriteAllText(Path.Combine(Pwm0, "duty_cycle"), DutyCycle.ToString());
+    //            Log.Info($"Device {Pwm0} changed duty cycle {DutyCycle}, HeaterPower: {HeaterPower}");
+    //            await Task.Delay(100);
+    //        }
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        Log.Error("Exeption faild to swich Z-Pump off");
+    //        Log.Error($"{ex.Message}");
+    //        throw;
+    //    }
+    //}
 }
