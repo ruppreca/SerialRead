@@ -45,9 +45,7 @@ internal class PwmKemo
 
             if (Gpio!= null)
             {
-                //Gpio.KemoOn();
-                Gpio.KemoOff();     //  240601 Off while not Power value available (Zähler lesen kaputt)
-
+                Gpio.KemoOn();
             }
 
             if (!Directory.Exists(Pwm0))
@@ -65,6 +63,8 @@ internal class PwmKemo
                 File.WriteAllText(Path.Combine(Pwm0, "enable"), "1");
                 Log.Info($"Device {Pwm0} setup period {Period}, duty cycle {DutyCycle}");
             }
+
+            Gpio.KemoOff();     //  240601 Off while not Power value available (Zähler lesen kaputt)
         }
         catch (Exception ex)
         {
