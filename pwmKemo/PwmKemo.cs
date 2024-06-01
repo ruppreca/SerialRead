@@ -23,6 +23,8 @@ internal class PwmKemo
     public string Period { get; set; } = "1000000"; //period 1ms
     public int DutyCycle { get; set; } = 0;
     public int HeaterPower { get; set; } = 0;
+
+    private bool _heaterOff = false;
     public PwmKemo(GpioPins gpio)
     {
         Gpio = gpio;
@@ -43,7 +45,9 @@ internal class PwmKemo
 
             if (Gpio!= null)
             {
-                Gpio.KemoOn();
+                //Gpio.KemoOn();
+                Gpio.KemoOn();     //  240601 Off while not Power value available (Zähler lesen kaputt)
+
             }
 
             if (!Directory.Exists(Pwm0))
@@ -90,7 +94,19 @@ internal class PwmKemo
                 {
                     HeaterPower -= (int)(powerConsumed * k);
                 }
-                Log.Info($"Heater power reduced to {HeaterPower}, consumed {powerConsumed}");
+                if(HeaterPower <= 0)
+                {
+                    if(_heaterOff = false)
+                    {
+                        Log.Info($"Heater power OFF, consumed {powerConsumed}");
+                    }
+                    _heaterOff = true;
+                }
+                else
+                {
+                    _heaterOff = false;
+                    Log.Info($"Heater power reduced to {HeaterPower}, consumed {powerConsumed}");
+                }
             }
             else if (powerConsumed <= -wantedInfeedpower) // increase heater power
             {
