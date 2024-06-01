@@ -126,7 +126,7 @@ internal class ZpumpBackgroundService
         }
         catch (Exception ex)
         {
-            Log.Error("Exception in KemoBackgroundService DoWorkAsync");
+            Log.Error("Exception in ZpumpBackgroundService DoWorkAsync");
             Log.Error($"Ex. message: {ex.Message}");
             throw;
         }

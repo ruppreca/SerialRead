@@ -46,7 +46,7 @@ internal class PwmKemo
             if (Gpio!= null)
             {
                 //Gpio.KemoOn();
-                Gpio.KemoOn();     //  240601 Off while not Power value available (Zähler lesen kaputt)
+                Gpio.KemoOff();     //  240601 Off while not Power value available (Zähler lesen kaputt)
 
             }
 
