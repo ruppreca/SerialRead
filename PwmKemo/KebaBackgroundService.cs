@@ -18,6 +18,8 @@ internal class KebaBackgroundService
     private GpioPins Gpio;
     private Mqtt Mqtt;
 
+    //private const string MqttTopicPower = "strom/zaehler/SENSOR";
+    private const string MqttTopicPower = "Iammeter/curr_w";
 
     private GlobalProps _globalProps;
 
@@ -32,7 +34,7 @@ internal class KebaBackgroundService
         try
         {
             Mqtt = new();
-            Mqtt.subscribe("strom/zaehler/SENSOR", ReceivedFromSubcribe);
+            Mqtt.subscribe(MqttTopicPower, ReceivedFromSubcribeIammeter);  // change Topic and method !!
             Log.Debug("New Mqtt and subscribe");
             Gpio = new();
             Log.Debug("New Gpio");
@@ -105,10 +107,14 @@ internal class KebaBackgroundService
     }
 
     private int _lastPower = 0;
-    public void ReceivedFromSubcribe(string message)
+    public void ReceivedFromSubcribeSML(string message)
     {
         var now = DateTime.Now;
         int heaterpower;
+
+        Log.Info($"Message from Iammeter: {message}");
+
+
         (DateTime time, int? power) = ParseJsonSML(message);
         if (power.HasValue && time - now < TimeSpan.FromSeconds(10))
         {
@@ -121,6 +127,33 @@ internal class KebaBackgroundService
                     _lastPower = (int)power;
                     Mqtt.publishHeaterPower(heaterpower.ToString());
                 }        
+            }
+            else
+            {
+                Log.Error($"Inplausable power from Zähler: {power}");
+                heaterpower = _pwmKemo.controlPower(2000); // power 2000 Watt will stop Heater
+                Mqtt.publishHeaterPower(heaterpower.ToString());
+            }
+        }
+    }
+
+    public void ReceivedFromSubcribeIammeter(string message)
+    {
+        int heaterpower;
+
+        Log.Debug($"Message from Iammeter: {message}");
+        int? power = int.Parse(message);
+        if (power.HasValue)
+        {
+            Log.Debug($"Iammeter power {power}");
+            if (power > -1000 && power < 16000)  // only if power changed
+            {
+                if (_lastPower != power)
+                {
+                    heaterpower = _pwmKemo.controlPower((int)power);
+                    _lastPower = (int)power;
+                    Mqtt.publishHeaterPower(heaterpower.ToString());
+                }
             }
             else
             {
