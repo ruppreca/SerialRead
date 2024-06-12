@@ -20,6 +20,7 @@ internal class KebaBackgroundService
 
     //private const string MqttTopicPower = "strom/zaehler/SENSOR";
     private const string MqttTopicPower = "Iammeter/curr_w";
+    private const string MqttTopicBattVolt = "ahoy/schnee/ch1/U_DC";
 
     private GlobalProps _globalProps;
 
@@ -36,6 +37,13 @@ internal class KebaBackgroundService
             Mqtt = new();
             Mqtt.subscribe(MqttTopicPower, ReceivedFromSubcribeIammeter);  // change Topic and method !!
             Log.Debug("New Mqtt and subscribe");
+
+            //Mqtt = new();
+            //Log.Info("New Mqtt created");
+            //Mqtt.subscribe([MqttTopicPower, MqttTopicBattVolt],
+            //               [ReceivedFromSubcribeIammeter, ReceivedFromSubcribeBattVolt]);  // change Topic and method !!
+            //Log.Info("Mqtt subscribe added");
+
             Gpio = new();
             Log.Debug("New Gpio");
 
@@ -47,9 +55,9 @@ internal class KebaBackgroundService
             timerTask = DoWorkAsync();
             Log.Info("KemoBackgroundService started success");
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            Log.Error("KemoBackgroundService failed to init");
+            Log.Error($"KemoBackgroundService failed to init: {e.Message}");
             throw;
         }
     }
@@ -57,7 +65,6 @@ internal class KebaBackgroundService
     int _maxFlanshTemp = 85;
     int _alarmFlanshTemp = 90;
     
-   
     private async Task DoWorkAsync()
     {
         Log.Debug("Kemo run DoWorkAsync");
@@ -135,11 +142,13 @@ internal class KebaBackgroundService
                 Mqtt.publishHeaterPower(heaterpower.ToString());
             }
         }
+        
     }
 
-    public void ReceivedFromSubcribeIammeter(string message)
+    public async void ReceivedFromSubcribeIammeter(string message)
     {
         int heaterpower;
+        int Hm600power;   // max power setting for Hoymiles HM-600 inverter
 
         Log.Debug($"Message from Iammeter: {message}");
         int? power = int.Parse(message);
@@ -150,9 +159,14 @@ internal class KebaBackgroundService
             {
                 if (_lastPower != power)
                 {
-                    heaterpower = _pwmKemo.controlPower((int)power);
+                    // AR 240609 disabled heater power
+                    //heaterpower = _pwmKemo.controlPower((int)power);
+                    //Mqtt.publishHeaterPower(heaterpower.ToString());
+
+                    //ar240609 add "nulleinspeistung" für hm-600
+                    Hm600power = await _pwmKemo.limitHm600Power((int)power);
+
                     _lastPower = (int)power;
-                    Mqtt.publishHeaterPower(heaterpower.ToString());
                 }
             }
             else
@@ -163,6 +177,21 @@ internal class KebaBackgroundService
             }
         }
     }
+
+    public void ReceivedFromSubcribeBattVolt(string message)
+    {
+        double? u_Dc = double.Parse(message);
+        if (u_Dc.HasValue)
+        {
+            Log.Info($"Message from Batt Volt: {message}");
+            if(u_Dc < 48.0)
+                _globalProps.BatterieVoltageLow = true;
+            if(u_Dc > 48.5)
+                _globalProps.BatterieVoltageLow = false;
+        }
+      
+    }
+
 
     private static (DateTime, int?) ParseJsonSML(string message)
     {
