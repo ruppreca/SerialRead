@@ -2,6 +2,9 @@
 using NLog;
 using System;
 using System.IO;
+using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace GPIOControl.PwmKemo;
@@ -19,10 +22,14 @@ internal class PwmKemo
 
     private GlobalProps _globalProps;
     private DateTime _lastHeaterTime = DateTime.Now;
+    private HttpClient _client;
+
+    const string AhoyUrl = "http://192.168.178.64/api/ctrl";
 
     public string Period { get; set; } = "1000000"; //period 1ms
     public int DutyCycle { get; set; } = 0;
     public int HeaterPower { get; set; } = 0;
+    public int Hm600Power { get; set; } = 0;
 
     private bool _heaterOff = false;
     public PwmKemo(GpioPins gpio)
@@ -63,6 +70,14 @@ internal class PwmKemo
                 File.WriteAllText(Path.Combine(Pwm0, "enable"), "1");
                 Log.Info($"Device {Pwm0} setup period {Period}, duty cycle {DutyCycle}");
             }
+
+            _client = new();
+            if(_client != null)
+            {
+                Log.Info("Hppt client init OK, set HM power to 0");
+                await SetHM600Power(0);
+            }
+            
 
             Gpio.KemoOff();     //  240601 Off while not Power value available (Zähler lesen kaputt)
         }
@@ -164,6 +179,52 @@ internal class PwmKemo
         {
             Log.Error(">>>>>>>>>>>>>>>>>>>>   set alarm off failed !!!!!!!");
             Log.Error("Faild update Pwm0 duty cycle, NO directory");
+        }
+    }
+
+    private const int MaxHm600Power = 600;  // in Watt
+    double kHm = 0.7; // control factor for Hm-600 "Nulleinspeisung"
+    int _oldPower = 0;
+    internal async Task<int> limitHm600Power(int powerConsumed)
+    {
+        if (powerConsumed > 0 && Hm600Power <= MaxHm600Power) // increase HM power setting
+        {
+            Hm600Power += (int)((powerConsumed + wantedInfeedpower) * kHm);
+            if (Hm600Power > MaxHm600Power)
+            {
+                Hm600Power = MaxHm600Power;
+            }
+            Log.Info($"HM-600 power increased to {Hm600Power}, consumed {powerConsumed}");
+        }
+        else if (powerConsumed <= -wantedInfeedpower)
+        {
+            Hm600Power += (int)(powerConsumed * kHm);  //a decrease is done because powerConsumed is negative
+            if (Hm600Power < 0)
+            {
+                Hm600Power = 0;
+            }
+            Log.Info($"HM-600 power reduced to {Hm600Power}, consumed {powerConsumed}");
+        }
+        if(Hm600Power != _oldPower)
+        {
+            _oldPower = Hm600Power;
+            await SetHM600Power(Hm600Power);
+        }
+        return Hm600Power;
+    }
+
+    private async Task SetHM600Power(int power)
+    {
+        power = power > 600 ? 600 : power;
+        power = power < 0 ? 0 : power;
+        string myJson = $"{{\"id\": 0, \"cmd\": \"limit_nonpersistent_absolute\", \"val\": {power}}}";
+
+        var response = await _client.PostAsync(AhoyUrl, new StringContent(myJson, Encoding.UTF8, "application/json"));
+
+        if (!response.IsSuccessStatusCode) 
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            Log.Info($"Http Post failed {response.StatusCode}, reason {response.ReasonPhrase}, content: {content}");
         }
     }
 
