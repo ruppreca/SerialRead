@@ -35,14 +35,10 @@ internal class KebaBackgroundService
         try
         {
             Mqtt = new();
+            await Mqtt.Connect_Client_Timeout("Keba");
             Mqtt.subscribe(MqttTopicPower, ReceivedFromSubcribeIammeter);  // change Topic and method !!
-            Log.Debug("New Mqtt and subscribe");
-
-            //Mqtt = new();
-            //Log.Info("New Mqtt created");
-            //Mqtt.subscribe([MqttTopicPower, MqttTopicBattVolt],
-            //               [ReceivedFromSubcribeIammeter, ReceivedFromSubcribeBattVolt]);  // change Topic and method !!
-            //Log.Info("Mqtt subscribe added");
+            Mqtt.subscribe(MqttTopicBattVolt, ReceivedFromSubcribeBattVolt);
+            Log.Info("Mqtt Keba subscripe done");
 
             Gpio = new();
             Log.Debug("New Gpio");
@@ -75,7 +71,7 @@ internal class KebaBackgroundService
                
                 double flanschTemp = ReadTemp.Read1WireTemp("28-000000a851b8");  //Flansch am Heizstab
                 Log.Debug($"Heater flansch temp: {flanschTemp}°C at {DateTime.Now}");
-                Mqtt.publishHotFlansch((flanschTemp).ToString());
+                await Mqtt.publishHotFlansch((flanschTemp).ToString());
 
                 if (flanschTemp > _maxFlanshTemp)
                 {
@@ -114,7 +110,7 @@ internal class KebaBackgroundService
     }
 
     private int _lastPower = 0;
-    public void ReceivedFromSubcribeSML(string message)
+    public async void ReceivedFromSubcribeSML(string message)
     {
         var now = DateTime.Now;
         int heaterpower;
@@ -132,14 +128,14 @@ internal class KebaBackgroundService
                 {
                     heaterpower = _pwmKemo.controlPower((int)power);
                     _lastPower = (int)power;
-                    Mqtt.publishHeaterPower(heaterpower.ToString());
+                    await Mqtt.publishHeaterPower(heaterpower.ToString());
                 }        
             }
             else
             {
                 Log.Error($"Inplausable power from Zähler: {power}");
                 heaterpower = _pwmKemo.controlPower(2000); // power 2000 Watt will stop Heater
-                Mqtt.publishHeaterPower(heaterpower.ToString());
+                await Mqtt.publishHeaterPower(heaterpower.ToString());
             }
         }
         
@@ -173,7 +169,7 @@ internal class KebaBackgroundService
             {
                 Log.Error($"Inplausable power from Zähler: {power}");
                 heaterpower = _pwmKemo.controlPower(2000); // power 2000 Watt will stop Heater
-                Mqtt.publishHeaterPower(heaterpower.ToString());
+                await Mqtt.publishHeaterPower(heaterpower.ToString());
             }
         }
     }
@@ -189,7 +185,6 @@ internal class KebaBackgroundService
             if(u_Dc > 48.5)
                 _globalProps.BatterieVoltageLow = false;
         }
-      
     }
 
 

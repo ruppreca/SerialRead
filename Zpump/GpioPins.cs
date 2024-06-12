@@ -37,11 +37,11 @@ internal class GpioPins
     {
         try
         {
-            _mqtt.publishZ("0");
+            await _mqtt.publishZ("0");
             _controller.Write(PumpPin, PinValue.High);
             Log.Info("Z-PumpPin is on");
             await Task.Delay(1100);
-            _mqtt.publishZ("1");
+            await _mqtt.publishZ("1");
         }
         catch (Exception ex)
         {
@@ -53,11 +53,11 @@ internal class GpioPins
     {
         try
         {
-            _mqtt.publishZ("1");
+            await _mqtt.publishZ("1");
             await Task.Delay(1100);
             _controller.Write(PumpPin, PinValue.Low);
             Log.Info("Z-PumpPin is off");
-            _mqtt.publishZ("0");
+            await _mqtt.publishZ("0");
         }
         catch (Exception ex)
         {

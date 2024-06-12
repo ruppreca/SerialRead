@@ -32,7 +32,8 @@ internal class ZpumpBackgroundService
             Pump = new();
             Log.Debug("New Pump");
             Mqtt = new();
-            Log.Debug("New Mqtt and subscribe");
+            await Mqtt.Connect_Client_Timeout("Zpump");
+            Log.Debug("New Mqtt Zpump client");
             timerTask = DoWorkAsync();
             Log.Info("ZpumpBackgroundService started success");
         }
@@ -88,7 +89,7 @@ internal class ZpumpBackgroundService
 
                 double ww = ReadTemp.Read1WireTemp("28-000000a84439");
                 Log.Debug($"WW temp: {ww:0.00} degC, took) {(DateTime.Now - startime).TotalMilliseconds}ms");
-                Mqtt.publishWw(ww.ToString());
+                await Mqtt.publishWw(ww.ToString());
                 if (cts.Token.IsCancellationRequested) break;
 
                 if (lastTemp1 > 0 && lastTemp2 > 0 && lastTemp2 < lowerTlimit)  // only check if water is below limit

@@ -1,125 +1,135 @@
 ﻿using NLog;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+using System.Threading.Tasks;
+using System.Threading;
+using MQTTnet;
+using MQTTnet.Client;
 using System.Text;
-using uPLibrary.Networking.M2Mqtt;
-using uPLibrary.Networking.M2Mqtt.Messages;
 
+namespace GPIOControl;
 
-namespace GPIOControl
+internal class Mqtt
 {
-    internal class Mqtt
+    private MqttClient _client;
+    private const string user = "raspi-ar";
+    private const string passwd = "LoTTPlaolGiM";
+    private const string mqttIp = "192.168.178.26";
+
+    private Dictionary<string, Action<string>> _callbackDir = new();
+
+    private static Logger Log = LogManager.GetCurrentClassLogger();
+
+    public Mqtt()
     {
-        private MqttClient _client;
-        private const string user = "raspi-ar";
-        private const string passwd = "LoTTPlaolGiM";
-        private const string mqttIp = "192.168.178.26";
+        _callbackDir.Clear();
+        var mqttFactory = new MqttFactory();
+        _client = (MqttClient)mqttFactory.CreateMqttClient();
 
-        private Dictionary<string, Action<string>> _callbackDir = new();
+        _client.ApplicationMessageReceivedAsync += HandleMqttApplicationMessageReceived;
 
-        private static Logger Log = LogManager.GetCurrentClassLogger();
+        Log.Info($"Mqtt connect client created");
+    }
 
-        public Mqtt()
+    public async Task Connect_Client_Timeout(string id)
+    {
+        // This sample creates a simple MQTT client and connects to an invalid broker using a timeout.
+        var mqttClientOptions = new MqttClientOptionsBuilder()
+            .WithTcpServer(mqttIp)
+            .WithCredentials(user, passwd)
+            .WithClientId(id)
+            .Build();
+        try
         {
-            _callbackDir.Clear();
-            _client = new MqttClient(mqttIp);
-            byte r = _client.Connect(Guid.NewGuid().ToString(), user, passwd);
-            Log.Info($"Mqtt connect returns {(r == 0 ? "Ok" : "Fail")}, Is connected: {_client.IsConnected}");
-        }
-
-        private void ClientMqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e)
-        {
-            Log.Debug($"MQTT message received: {Encoding.ASCII.GetString(e.Message)}, topic: {e.Topic}");
-            _callback(Encoding.ASCII.GetString(e.Message));
-        }
-
-        //private void ClientMqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e)
-        //{
-        //    Log.Debug($"subscribed MQTT message received: {Encoding.ASCII.GetString(e.Message)}, topic: {e.Topic}");
-
-        //    if (_callbackDir.TryGetValue(e.Topic, out Action<string> action))
-        //    {
-        //        action(Encoding.ASCII.GetString(e.Message));
-        //    }
-        //    else
-        //    {
-        //        Log.Error($"No action registerd for MQTT topic {e.Topic}");
-        //    }
-        //}
-
-        private void ClientMqttMsgSubscribed(object sender, MqttMsgSubscribedEventArgs e)
-        {
-            Log.Info($"Subscribe received, Msg.Id:{e.MessageId}, Qos:{e.GrantedQoSLevels}");
-        }
-
-        Action<string> _callback;
-        public void subscribe(string topic, Action<string> callback)
-        {
-            _callback = callback;
-            if (_client.IsConnected)
+            using (var timeoutToken = new CancellationTokenSource(TimeSpan.FromSeconds(1)))
             {
-                _client.MqttMsgPublishReceived += ClientMqttMsgPublishReceived;
-                _client.MqttMsgSubscribed += ClientMqttMsgSubscribed;
-                //_client.MqttMsgPublished += ClientMqttMsgPublished;
-                //_client.ConnectionClosed += ClientMqttConnectionClosed;
-
-                _client.Subscribe([topic], [MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE]);
+                await _client.ConnectAsync(mqttClientOptions, timeoutToken.Token);
             }
         }
-
-        //public void subscribe(string[] topics, Action<string>[] callbacks)
-        //{
-        //    Log.Info($"Mqtt subscripe start {topics}");
-        //    int i = 0;
-        //    foreach (string topic in topics)
-        //    {
-        //        if (callbacks[i] != null)
-        //        {
-        //            _callbackDir.Add(topic, callbacks[i++]);
-        //        }
-        //    }
-
-        //    foreach (var item in _callbackDir)
-        //    {
-        //        Log.Info($"Topic: {item.Key} is calling {item.Value.Method}");
-        //    }
-
-        //    if (_client.IsConnected)
-        //    {
-        //        _client.MqttMsgPublishReceived += ClientMqttMsgPublishReceived;
-        //        _client.MqttMsgSubscribed += ClientMqttMsgSubscribed;
-        //        //_client.MqttMsgPublished += ClientMqttMsgPublished;
-        //        //_client.ConnectionClosed += ClientMqttConnectionClosed;
-
-        //        _client.Subscribe(topics, [MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE]);
-        //        Log.Info($"Mqtt subscripe is done");
-        //    }
-        //}
-
-        public void publishZ(string value)
+        catch (OperationCanceledException)
         {
-            var r = _client?.Publish("HomeTemp/Z-PumpOn", Encoding.UTF8.GetBytes(value), MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, false);
-            //Log.Info($"Publish Z returns {r}");
+            Log.Info("Mqtt client timeout while connecting.");
         }
 
-        public void publishWw(string value)
-        {
-            var r = _client?.Publish("HomeTemp/Siphon", Encoding.UTF8.GetBytes(value), MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, false);
-            //Log.Info($"Publish Ww returns {r}");
-        }
+        Log.Info($"Mqtt client {id} connected: {_client.IsConnected}");
+    }
 
-        public void publishHotFlansch(string value)
-        {
-            var r = _client?.Publish("HomeTemp/Flansch", Encoding.UTF8.GetBytes(value), MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, false);
-            //Log.Info($"Publish Ww returns {r}");
-        }
+    public async void subscribe(string topic, Action<string> callback)
+    {
+        _callbackDir.Add(topic, callback);
+        var mqttSubscribeOptions = new MqttFactory().CreateSubscribeOptionsBuilder()
+            .WithTopicFilter(
+                f =>
+                {
+                    f.WithTopic(topic);
+                })
+            .Build();
 
-        public void publishHeaterPower(string value)
+        var respoce = await _client?.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
+
+        Log.Info($"Subscribe to topic {topic}, result: {respoce}");
+    }
+    private Task HandleMqttApplicationMessageReceived(MqttApplicationMessageReceivedEventArgs e)
+    {
+        var payload = Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment);
+        Log.Debug($"Received MQTT topic {e.ApplicationMessage.Topic} with {payload}");
+
+
+        if (_callbackDir.TryGetValue(e.ApplicationMessage.Topic, out Action<string> action))
         {
-            var r = _client?.Publish("HomeTemp/HeaterPower", Encoding.UTF8.GetBytes(value), MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, false);
-            //Log.Info($"Publish Ww returns {r}");
+            action.Invoke(payload);
         }
+        else
+        {
+            Log.Error($"No action registerd for MQTT topic {e.ApplicationMessage.Topic}");
+        }
+        return Task.CompletedTask;
+    }
+
+    public async Task publishZ(string value)
+    {
+        var applicationMessage = new MqttApplicationMessageBuilder()
+           .WithTopic("HomeTemp/Z-PumpOn")
+           .WithPayload(value)
+           .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
+           .Build();
+        var r = await _client?.PublishAsync(applicationMessage, CancellationToken.None);
+
+        Log.Debug($"Publish Z returns {r.IsSuccess}");
+    }
+
+    public async Task publishWw(string value)
+    {
+        var applicationMessage = new MqttApplicationMessageBuilder()
+            .WithTopic("HomeTemp/Siphon")
+            .WithPayload(value)
+            .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+        var r = await _client?.PublishAsync(applicationMessage, CancellationToken.None);
+        Log.Debug($"Publish Ww returns {r.IsSuccess}");
+    }
+
+    public async Task publishHotFlansch(string value)
+    {
+        var applicationMessage = new MqttApplicationMessageBuilder()
+            .WithTopic("HomeTemp/Flansch")
+            .WithPayload(value)
+            .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+        var r = await _client?.PublishAsync(applicationMessage, CancellationToken.None);
+        Log.Debug($"Publish Hot Flansch returns {r.IsSuccess}");
+    }
+
+    public async Task publishHeaterPower(string value)
+    {
+        var applicationMessage = new MqttApplicationMessageBuilder()
+            .WithTopic("HomeTemp/HeaterPower")
+            .WithPayload(value)
+            .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+        var r = await _client?.PublishAsync(applicationMessage, CancellationToken.None);
+        Log.Debug($"Publish Heater Power {r.IsSuccess}");
+
     }
 }
+

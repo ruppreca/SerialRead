@@ -111,7 +111,7 @@ internal class PwmKemo
                 }
                 if(HeaterPower <= 0)
                 {
-                    if(_heaterOff = false)
+                    if(_heaterOff == false)
                     {
                         Log.Info($"Heater power OFF, consumed {powerConsumed}");
                     }
