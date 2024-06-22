@@ -40,7 +40,7 @@ internal class KebaBackgroundService
             Mqtt.subscribe(MqttTopicBattVolt, ReceivedFromSubcribeBattVolt);
             Log.Info("Mqtt Keba subscripe done");
 
-            Gpio = new();
+            Gpio = new(Mqtt);
             Log.Debug("New Gpio");
 
             Log.Debug("KemoBackgroundService do start up");

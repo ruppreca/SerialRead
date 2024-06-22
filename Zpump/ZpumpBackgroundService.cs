@@ -29,10 +29,11 @@ internal class ZpumpBackgroundService
         try
         {
             Log.Debug("ZpumpBackgroundService do start up");
-            Pump = new();
-            Log.Debug("New Pump");
             Mqtt = new();
             await Mqtt.Connect_Client_Timeout("Zpump");
+            Pump = new(Mqtt);
+            Log.Debug("New Pump and mqtt created");
+           
             Log.Debug("New Mqtt Zpump client");
             timerTask = DoWorkAsync();
             Log.Info("ZpumpBackgroundService started success");

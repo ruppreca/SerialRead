@@ -18,13 +18,13 @@ internal class GpioPins
     bool IsPumpOn = false;
     bool _kemoIsOn = false;
 
-    public GpioPins()
+    public GpioPins(Mqtt mqtt)
     {
         try
         {
             _controller.OpenPin(PumpPin, PinMode.Output);
             _controller.OpenPin(KemoPin, PinMode.Output);
-            _mqtt = new Mqtt();
+            _mqtt = mqtt;
             Log.Info("Z-Pump constructor done");
         }
         catch (Exception ex)

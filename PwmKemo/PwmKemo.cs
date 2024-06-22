@@ -89,7 +89,7 @@ internal class PwmKemo
         }
     }
 
-    private const int wantedInfeedpower = 10;
+    private const int wantedInfeedpower = 5;
     double k = 0.6; // control factor
     public int controlPower(int powerConsumed) // is the power readout from Stromzähler
     {
@@ -183,18 +183,18 @@ internal class PwmKemo
     }
 
     private const int MaxHm600Power = 600;  // in Watt
-    double kHm = 0.7; // control factor for Hm-600 "Nulleinspeisung"
+    double kHm = 0.5; // control factor for Hm-600 "Nulleinspeisung"
     int _oldPower = 0;
     internal async Task<int> limitHm600Power(int powerConsumed)
     {
         if (powerConsumed > 0 && Hm600Power <= MaxHm600Power) // increase HM power setting
         {
-            Hm600Power += (int)((powerConsumed + wantedInfeedpower) * kHm);
+            Hm600Power += (int)((powerConsumed) * kHm);
             if (Hm600Power > MaxHm600Power)
             {
                 Hm600Power = MaxHm600Power;
             }
-            Log.Info($"HM-600 power increased to {Hm600Power}, consumed {powerConsumed}");
+            Log.Debug($"HM-600 power increased to {Hm600Power}, consumed {powerConsumed}");
         }
         else if (powerConsumed <= -wantedInfeedpower)
         {
@@ -203,12 +203,14 @@ internal class PwmKemo
             {
                 Hm600Power = 0;
             }
-            Log.Info($"HM-600 power reduced to {Hm600Power}, consumed {powerConsumed}");
+            Log.Debug($"HM-600 power reduced to {Hm600Power}, consumed {powerConsumed}");
         }
+        //if(Hm600Power > _oldPower +10 || Hm600Power < _oldPower - 10) // das hat nicht so gefunzt
         if(Hm600Power != _oldPower)
         {
             _oldPower = Hm600Power;
             await SetHM600Power(Hm600Power);
+            Log.Info($"HM-600 power update to {Hm600Power}, consumed {powerConsumed}");
         }
         return Hm600Power;
     }

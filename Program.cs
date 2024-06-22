@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GPIOControl.PwmKemo;
 using GPIO_Control.Zpump;
+using GPIO_Control.Serial.VE.Direct;
 
 namespace GPIOControl;
 
@@ -12,6 +13,7 @@ class Program
     private static Logger Log = LogManager.GetCurrentClassLogger();
     private static KebaBackgroundService kebaBackgroundService;
     private static ZpumpBackgroundService zpumpBackgroundService;
+    private static SerialService serialService;
     private static readonly CancellationTokenSource cts = new();
     public  static GlobalProps _globalProps = new();
 
@@ -21,8 +23,10 @@ class Program
 
         kebaBackgroundService = new(TimeSpan.FromSeconds(5));
         zpumpBackgroundService = new(TimeSpan.FromSeconds(5));
+        serialService = new();
         await kebaBackgroundService.Start(_globalProps);
         await zpumpBackgroundService.Start();
+        serialService.Startup(cts, _globalProps);
 
         System.Runtime.Loader.AssemblyLoadContext.Default.Unloading += ctx =>
         {
