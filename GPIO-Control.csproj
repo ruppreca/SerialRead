@@ -9,6 +9,7 @@
     <PlatformTarget>ARM64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="InfluxDB.Client" Version="4.15.0" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.19.5" />
     <PackageReference Include="MQTTnet" Version="4.3.6.1152" />
     <PackageReference Include="NLog" Version="5.2.8" />

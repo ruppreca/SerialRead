@@ -10,6 +10,11 @@ using System.Threading.Tasks;
 using System.IO;
 using System.IO.Pipes;
 using System.Runtime.ConstrainedExecution;
+using InfluxDB.Client;
+using InfluxDB.Client.Api.Domain;
+using InfluxDB.Client.Writes;
+using System.Diagnostics;
+using System.Timers;
 
 namespace GPIO_Control.Serial.VE.Direct;
 
@@ -25,12 +30,17 @@ internal class SerialService
     private const string Serial_1 = "HQ222362TRN";  // West
     private const string Serial_2 = "HQ22236MWWE";  // Ost
 
+    private static readonly string Token = "LbpWnklKJjhgRecvsJiMzImm016Ycze98_55R2aUcjiuN-L4waCeHKr2fUAGXo9dTIgqd0h1kGaaUrd9vBsUdw==";
+    private static readonly string Org = "ArHome";
+    private static readonly string Bucket = "Batterie";
+
     FileStream _stream_1;
     StreamReader _dev_1;
     FileStream _stream_2;
     StreamReader _dev_2;
     MpptData _west;
     MpptData _ost;
+    InfluxDBClient _client;
 
     public SerialService()
     {
@@ -43,6 +53,8 @@ internal class SerialService
             _dev_1 = new StreamReader(_stream_1, Encoding.UTF8, true, 128);
             FileStream _stream_2 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read);
             _dev_2 = new StreamReader(_stream_2, Encoding.UTF8, true, 128);
+
+            _client = new InfluxDBClient("http://192.168.178.26:8086", Token);
         }
         catch (Exception ex)
         {
@@ -72,13 +84,39 @@ internal class SerialService
                     Log.Error($"SerialService failed interpert data dev {_ost.Name} {lineOfText}");
                 }
                 Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, Load {_ost.LoadOn}");
-                await Task.Delay(1500); // next data not expected before 1sec, skip one readout
+
+                try //  write to Influx DB
+                {
+                    using (var writeApi = _client.GetWriteApi())
+                    {
+                        // Write by Point
+                        var point = PointData.Measurement("batterie")
+                             //.Tag("location", "west")
+                            .Field("Vbatt_V", _ost.Vbatt_V)
+                            .Field("Ibatt_A", (_ost.Ibatt_A + _west.Ibatt_A)/2)
+                            .Field("WestPV_W", _west.PowerPV_W)
+                            .Field("OstPV_W", _ost.PowerPV_W)
+                            .Timestamp(DateTime.UtcNow, WritePrecision.S);
+
+                        writeApi.WritePoint(point, Bucket, Org);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"SerialService Influx fail: {ex.Message}");
+                }
+                Log.Info("SerialService done Write DB");
+
+                await Task.Delay(9500); // next data not expected before 1sec, skip readout for about 10sec
+                _dev_1.DiscardBufferedData(); // cleanup for next data
+                _dev_2.DiscardBufferedData();
             }
             Log.Info("SerialService ends");
         }
         catch (Exception e)
         {
-            Log.Error($"SerialService failed to init: {e.Message}");
+            Log.Error($"SerialService failed and ends: {e.Message}");
+            Log.Error(e);
             throw;
         }
         finally
@@ -99,7 +137,6 @@ internal class SerialService
             {
                 _stream_2.Close();
             }
-
         }
     }
 
