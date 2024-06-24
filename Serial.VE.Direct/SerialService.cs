@@ -47,6 +47,11 @@ internal class SerialService
         _west = new() { Ser = Serial_1, Name = "West"};
         _ost = new() { Ser = Serial_2, Name = "Ost" };
 
+        string output = "stty -F /dev/ttyUSB2 19200 cs8 -cstopb -parenb".Bash();
+        Log.Info($"Bash: {output}");
+        output = "stty -F /dev/ttyUSB3 19200 cs8 -cstopb -parenb".Bash();
+        Log.Info($"Bash: {output}");
+
         try
         {
             FileStream _stream_1 = new FileStream(mppt_1, FileMode.Open, FileAccess.Read);
@@ -70,21 +75,30 @@ internal class SerialService
             string lineOfText;
             while (!cts.IsCancellationRequested)
             {
-                lineOfText = await CollectDataLines(_dev_1);
+                //TODO read both devices in parallel and use timeout
+
+                bool writeToDb = true;
+                lineOfText = await CollectDataLines(_dev_1, cts);
                 if (!CheckMpttReadout(lineOfText, _west))
                 {
-                    Log.Error($"SerialService failed interpert data dev {_west.Name} {lineOfText}");
+                    Log.Error($"SerialService failed interpert data dev {_west.Name}: {lineOfText}");
+                    writeToDb = false;
                 }
                 Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, Load {_west.LoadOn}");
 
                 if (cts.IsCancellationRequested) break;
-                lineOfText = await CollectDataLines(_dev_2);
+                lineOfText = await CollectDataLines(_dev_2, cts);
                 if (!CheckMpttReadout(lineOfText, _ost))
                 {
-                    Log.Error($"SerialService failed interpert data dev {_ost.Name} {lineOfText}");
+                    Log.Error($"SerialService failed interpert data dev {_ost.Name}: {lineOfText}");
+                    writeToDb = false;
                 }
                 Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, Load {_ost.LoadOn}");
 
+                if(!writeToDb)
+                {
+                    continue;
+                }
                 try //  write to Influx DB
                 {
                     using (var writeApi = _client.GetWriteApi())
@@ -93,7 +107,7 @@ internal class SerialService
                         var point = PointData.Measurement("batterie")
                              //.Tag("location", "west")
                             .Field("Vbatt_V", _ost.Vbatt_V)
-                            .Field("Ibatt_A", (_ost.Ibatt_A + _west.Ibatt_A)/2)
+                            .Field("Ibatt_A", (_ost.Ibatt_A + _west.Ibatt_A))
                             .Field("WestPV_W", _west.PowerPV_W)
                             .Field("OstPV_W", _ost.PowerPV_W)
                             .Timestamp(DateTime.UtcNow, WritePrecision.S);
@@ -140,30 +154,36 @@ internal class SerialService
         }
     }
 
-    private static async Task<string> CollectDataLines(StreamReader dev)
+    private static async Task<string> CollectDataLines(StreamReader dev, CancellationTokenSource cts)
     {
         string result;
         string line;
         do
         {
-            line = await dev.ReadLineAsync();
+            line = await dev.ReadLineAsync(cts.Token);
         }
-        while (!line.StartsWith("Checksum"));
+        while (!line.StartsWith("PID"));
         result = line + ';';
         do
         {
-            line = await dev.ReadLineAsync();
+            line = await dev.ReadLineAsync(cts.Token);
             if (line.Length < 2) continue;
             result += line + ';';
         }
-        while (!line.StartsWith("HSDS"));
-
-        //Log.Info($"{result}");
+        while (!line.StartsWith("Checksum"));
         return result;
     }
 
     private static bool CheckMpttReadout(string data, MpptData mptt)
     {
+        byte[] array = Encoding.ASCII.GetBytes(data);
+        byte check = 0;
+        for (int i = 0; i < data.Length; i++)
+        {
+            check += array[i];
+        }
+        Log.Info($"Byte array size: {array.Length}, string: {data.Length}, Checksum: {check}");
+
         string[] parts = data.Split(';');
         foreach (var item in parts)
         {
@@ -178,6 +198,14 @@ internal class SerialService
                         Log.Error($"SerialService Checksum unexpected dev {mptt.Name}: {pair[1]}");
                         return false;
                     }
+                    else
+                    {
+                        byte[] checksum = Encoding.ASCII.GetBytes(pair[1]);
+                        if (checksum.Length > 0 && checksum[0] == check)
+                        {
+                            Log.Info($"Checksum is OK");
+                        }
+                    }
                     break;
                 case "SER#":
                     if (pair[1] != mptt.Ser)
@@ -189,10 +217,13 @@ internal class SerialService
                 case "V":
                     if (int.TryParse(pair[1], out int result))
                     {
-                        mptt.Vbatt_V = result / 1000.0;
+                        if(result > 10000)
+                        {
+                            mptt.Vbatt_V = result / 1000.0;
+                            break;
+                        }
                     }
-                    else return false;
-                    break;
+                    return false;
                 case "I":
                     if (int.TryParse(pair[1], out result))
                     {
