@@ -20,10 +20,9 @@ namespace GPIO_Control.Serial.VE.Direct;
 
 internal class SerialService
 {
-    private readonly PeriodicTimer timer;
-    private readonly CancellationTokenSource cts = new();
-    private Task? timerTask;
+    private static readonly CancellationTokenSource cts = new();
     private static Logger Log = LogManager.GetCurrentClassLogger();
+    private static CancellationTokenSource s_cts;
 
     private const string mppt_1 = "/dev/ttyUSB3";
     private const string mppt_2 = "/dev/ttyUSB2";
@@ -76,24 +75,37 @@ internal class SerialService
             while (!cts.IsCancellationRequested)
             {
                 //TODO read both devices in parallel and use timeout
-
+                s_cts = new CancellationTokenSource();
                 bool writeToDb = true;
-                lineOfText = await CollectDataLines(_dev_1, cts);
-                if (!CheckMpttReadout(lineOfText, _west))
+                try
                 {
-                    Log.Error($"SerialService failed interpert data dev {_west.Name}: {lineOfText}");
-                    writeToDb = false;
-                }
-                Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, Load {_west.LoadOn}");
+                    s_cts.CancelAfter(5000);
+                    lineOfText = await CollectDataLines(_dev_1, cts);
+                    if (!CheckMpttReadout(lineOfText, _west))
+                    {
+                        Log.Error($"SerialService failed interpert data dev {_west.Name}: {lineOfText}");
+                        writeToDb = false;
+                    }
+                    Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, Load {_west.LoadOn}");
 
-                if (cts.IsCancellationRequested) break;
-                lineOfText = await CollectDataLines(_dev_2, cts);
-                if (!CheckMpttReadout(lineOfText, _ost))
-                {
-                    Log.Error($"SerialService failed interpert data dev {_ost.Name}: {lineOfText}");
-                    writeToDb = false;
+                    if (cts.IsCancellationRequested) break;
+                    lineOfText = await CollectDataLines(_dev_2, cts);
+                    if (!CheckMpttReadout(lineOfText, _ost))
+                    {
+                        Log.Error($"SerialService failed interpert data dev {_ost.Name}: {lineOfText}");
+                        writeToDb = false;
+                    }
+                    Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, Load {_ost.LoadOn}");
                 }
-                Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, Load {_ost.LoadOn}");
+                catch (OperationCanceledException)
+                {
+                    Log.Error($"\nSerialService Tasks cancelled: timed out.\n");
+                    return;
+                }
+                finally
+                {
+                    s_cts.Dispose();
+                }
 
                 if(!writeToDb)
                 {
@@ -156,6 +168,7 @@ internal class SerialService
 
     private static async Task<string> CollectDataLines(StreamReader dev, CancellationTokenSource cts)
     {
+        // nach eineger Zeit läuft der ReadLineAsync für immer, braucht timeout und dann neustart des service
         string result;
         string line;
         do
@@ -174,7 +187,7 @@ internal class SerialService
         return result;
     }
 
-    private static bool CheckMpttReadout(string data, MpptData mptt)
+    private static bool CheckMpttReadout(string data, MpptData mppt)
     {
         byte[] array = Encoding.ASCII.GetBytes(data);
         byte check = 0;
@@ -195,7 +208,7 @@ internal class SerialService
                 case "Checksum":
                     if (pair[1].Length != 1)
                     {
-                        Log.Error($"SerialService Checksum unexpected dev {mptt.Name}: {pair[1]}");
+                        Log.Error($"SerialService Checksum unexpected dev {mppt.Name}: {pair[1]}");
                         return false;
                     }
                     else
@@ -208,9 +221,9 @@ internal class SerialService
                     }
                     break;
                 case "SER#":
-                    if (pair[1] != mptt.Ser)
+                    if (pair[1] != mppt.Ser)
                     {
-                        Log.Error($"SerialService Ser# unexpected dev {mptt.Name}: {pair[1]}");
+                        Log.Error($"SerialService Ser# unexpected dev {mppt.Name}: {pair[1]}");
                         return false;
                     }
                     break;
@@ -219,7 +232,7 @@ internal class SerialService
                     {
                         if(result > 10000)
                         {
-                            mptt.Vbatt_V = result / 1000.0;
+                            mppt.Vbatt_V = result / 1000.0;
                             break;
                         }
                     }
@@ -227,43 +240,43 @@ internal class SerialService
                 case "I":
                     if (int.TryParse(pair[1], out result))
                     {
-                        mptt.Ibatt_A = result / 1000.0;
+                        mppt.Ibatt_A = result / 1000.0;
                     }
                     else return false;
                     break;
                 case "PPV":
                     if (int.TryParse(pair[1], out result))
                     {
-                        mptt.PowerPV_W = result;
+                        mppt.PowerPV_W = result;
                     }
                     else return false;
                     break;
                 case "ERR":
-                    if (!mptt.HasError && pair[1] != "0")
+                    if (!mppt.HasError && pair[1] != "0")
                     {
-                        mptt.HasError = true;
-                        mptt.Err = pair[1];
-                        Log.Error($"SerialService New error for mppt {mptt.Name}, Ser#: {mptt.Ser}, Err: {pair[1]}");
+                        mppt.HasError = true;
+                        mppt.Err = pair[1];
+                        Log.Error($"SerialService New error for mppt {mppt.Name}, Ser#: {mppt.Ser}, Err: {pair[1]}");
                     }
-                    if (mptt.HasError && pair[1] == "0")
+                    if (mppt.HasError && pair[1] == "0")
                     {
-                        mptt.HasError = false;
-                        mptt.Err = pair[1];
-                        Log.Error($"SerialService Removed error for mppt {mptt.Name}, Ser#: {mptt.Ser}");
+                        mppt.HasError = false;
+                        mppt.Err = pair[1];
+                        Log.Error($"SerialService Removed error for mppt {mppt.Name}, Ser#: {mppt.Ser}");
                     }
                     break;
                 case "LOAD":
                     if (pair[1].Trim() == "ON")
                     {
-                        mptt.LoadOn = true;
+                        mppt.LoadOn = true;
                     }
                     else if (pair[1].Trim() == "OFF")
                     {
-                        mptt.LoadOn = false;
+                        mppt.LoadOn = false;
                     }
                     else
                     {
-                        Log.Error($"SerialService Unexpected string for LOAD at device {mptt.Name}: {pair[1]}");
+                        Log.Error($"SerialService Unexpected string for LOAD at device {mppt.Name}: {pair[1]}");
                         return false;
                     }
                     break;

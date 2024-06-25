@@ -23,10 +23,16 @@ class Program
 
         kebaBackgroundService = new(TimeSpan.FromSeconds(5));
         zpumpBackgroundService = new(TimeSpan.FromSeconds(5));
-        serialService = new();
+        
         await kebaBackgroundService.Start(_globalProps);
         await zpumpBackgroundService.Start();
-        serialService.Startup(cts, _globalProps);
+
+        do
+        {
+            serialService = new();
+            await serialService.Startup(cts, _globalProps);
+            serialService = null;
+        } while (!cts.Token.IsCancellationRequested);
 
         System.Runtime.Loader.AssemblyLoadContext.Default.Unloading += ctx =>
         {
