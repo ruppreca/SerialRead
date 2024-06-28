@@ -15,11 +15,14 @@ using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
 using System.Diagnostics;
 using System.Timers;
+using System.Reactive;
 
 namespace GPIO_Control.Serial.VE.Direct;
 
 internal class SerialService
 {
+    private readonly PeriodicTimer _timer;
+    private Task timerTask;
     private static readonly CancellationTokenSource cts = new();
     private static Logger Log = LogManager.GetCurrentClassLogger();
     private static CancellationTokenSource s_cts;
@@ -41,129 +44,142 @@ internal class SerialService
     MpptData _ost;
     InfluxDBClient _client;
 
-    public SerialService()
+    public SerialService(TimeSpan timerInterval)
     {
         _west = new() { Ser = Serial_1, Name = "West"};
         _ost = new() { Ser = Serial_2, Name = "Ost" };
 
-        string output = "stty -F /dev/ttyUSB2 19200 cs8 -cstopb -parenb".Bash();
-        Log.Info($"Bash: {output}");
-        output = "stty -F /dev/ttyUSB3 19200 cs8 -cstopb -parenb".Bash();
-        Log.Info($"Bash: {output}");
-
+        _timer = new(timerInterval);
+    }
+    public async Task Startup(GlobalProps globalProps)
+    {
         try
         {
-            FileStream _stream_1 = new FileStream(mppt_1, FileMode.Open, FileAccess.Read);
-            _dev_1 = new StreamReader(_stream_1, Encoding.UTF8, true, 128);
-            FileStream _stream_2 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read);
-            _dev_2 = new StreamReader(_stream_2, Encoding.UTF8, true, 128);
+            string output = "stty -F /dev/ttyUSB2 19200 cs8 -cstopb -parenb".Bash();
+            Log.Info($"Bash: {output}");
+            output = "stty -F /dev/ttyUSB3 19200 cs8 -cstopb -parenb".Bash();
+            Log.Info($"Bash: {output}");
 
             _client = new InfluxDBClient("http://192.168.178.26:8086", Token);
+            timerTask = DoWorkAsync();
         }
         catch (Exception ex)
         {
             Log.Error($"SerialService failed to open devices: {ex.Message}");
             throw;
         }
+        Log.Info("SerialService started success");
     }
-    public async Task Startup(CancellationTokenSource cts, GlobalProps globalProps)
+
+    private async Task DoWorkAsync()
     {
-        Log.Info("SerialService started");
+        //Log.Info("SerialService run DoWorkAsync");
         try
         {
-            string lineOfText;
-            while (!cts.IsCancellationRequested)
+            while (!cts.Token.IsCancellationRequested && await _timer.WaitForNextTickAsync(cts.Token))
             {
-                //TODO read both devices in parallel and use timeout
-                s_cts = new CancellationTokenSource();
-                bool writeToDb = true;
                 try
                 {
-                    s_cts.CancelAfter(5000);
-                    lineOfText = await CollectDataLines(_dev_1, cts);
-                    if (!CheckMpttReadout(lineOfText, _west))
-                    {
-                        Log.Error($"SerialService failed interpert data dev {_west.Name}: {lineOfText}");
-                        writeToDb = false;
-                    }
-                    Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, Load {_west.LoadOn}");
+                    string lineOfText;
+                    FileStream _stream_1 = new FileStream(mppt_1, FileMode.Open, FileAccess.Read);
+                    _dev_1 = new StreamReader(_stream_1, Encoding.UTF8, true, 128);
+                    FileStream _stream_2 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read);
+                    _dev_2 = new StreamReader(_stream_2, Encoding.UTF8, true, 128);
 
-                    if (cts.IsCancellationRequested) break;
-                    lineOfText = await CollectDataLines(_dev_2, cts);
-                    if (!CheckMpttReadout(lineOfText, _ost))
+                    //TODO read both devices in parallel and use timeout
+                    s_cts = new CancellationTokenSource();
+                    bool writeToDb = true;
+                    try
                     {
-                        Log.Error($"SerialService failed interpert data dev {_ost.Name}: {lineOfText}");
-                        writeToDb = false;
+                        s_cts.CancelAfter(3000);
+                        lineOfText = await CollectDataLines(_dev_1, s_cts);
+                        if (!CheckMpttReadout(lineOfText, _west))
+                        {
+                            Log.Error($"SerialService failed interpert data dev {_west.Name}: {lineOfText}");
+                            writeToDb = false;
+                        }
+                        Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, State: {_west.State}, Load {_west.LoadOn}");
+
+                        if (cts.IsCancellationRequested) return;
+                        lineOfText = await CollectDataLines(_dev_2, s_cts);
+                        if (!CheckMpttReadout(lineOfText, _ost))
+                        {
+                            Log.Error($"SerialService failed interpert data dev {_ost.Name}: {lineOfText}");
+                            writeToDb = false;
+                        }
+                        Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, State: {_ost.State}, Load {_ost.LoadOn}");
                     }
-                    Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, Load {_ost.LoadOn}");
+                    catch (OperationCanceledException)
+                    {
+                        Log.Error($"\nSerialService Tasks cancelled: timed out.\n");
+                        return;
+                    }
+                    finally
+                    {
+                        s_cts.Dispose();
+                    }
+
+                    if (cts.IsCancellationRequested) return;
+                    if (writeToDb)
+                    {
+                        try //  write to Influx DB
+                        {
+                            using (var writeApi = _client.GetWriteApi())
+                            {
+                                // Write by Point
+                                var point = PointData.Measurement("batterie")
+                                    //.Tag("location", "west")
+                                    .Field("Vbatt_V", _ost.Vbatt_V)
+                                    .Field("Ibatt_A", (_ost.Ibatt_A + _west.Ibatt_A))
+                                    .Field("WestPV_W", _west.PowerPV_W)
+                                    .Field("OstPV_W", _ost.PowerPV_W)
+                                    .Timestamp(DateTime.UtcNow, WritePrecision.S);
+
+                                writeApi.WritePoint(point, Bucket, Org);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"SerialService Influx fail: {ex.Message}");
+                        }
+                        //Log.Info("SerialService done Write DB");
+                    }
                 }
-                catch (OperationCanceledException)
+                catch (Exception e)
                 {
-                    Log.Error($"\nSerialService Tasks cancelled: timed out.\n");
-                    return;
+                    Log.Error($"SerialService failed and ends: {e.Message}");
+                    Log.Error(e);
                 }
                 finally
                 {
-                    s_cts.Dispose();
+                    //_dev_1.Close();
+                    //_dev_2.Close();
+                    //_stream_1.Close();
+                    //_stream_2.Close();
                 }
-
-                if(!writeToDb)
-                {
-                    continue;
-                }
-                try //  write to Influx DB
-                {
-                    using (var writeApi = _client.GetWriteApi())
-                    {
-                        // Write by Point
-                        var point = PointData.Measurement("batterie")
-                             //.Tag("location", "west")
-                            .Field("Vbatt_V", _ost.Vbatt_V)
-                            .Field("Ibatt_A", (_ost.Ibatt_A + _west.Ibatt_A))
-                            .Field("WestPV_W", _west.PowerPV_W)
-                            .Field("OstPV_W", _ost.PowerPV_W)
-                            .Timestamp(DateTime.UtcNow, WritePrecision.S);
-
-                        writeApi.WritePoint(point, Bucket, Org);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"SerialService Influx fail: {ex.Message}");
-                }
-                Log.Info("SerialService done Write DB");
-
-                await Task.Delay(9500); // next data not expected before 1sec, skip readout for about 10sec
-                _dev_1.DiscardBufferedData(); // cleanup for next data
-                _dev_2.DiscardBufferedData();
             }
-            Log.Info("SerialService ends");
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            Log.Error($"SerialService failed and ends: {e.Message}");
-            Log.Error(e);
+            Log.Error("Exception in SerialService DoWorkAsync");
+            Log.Error($"Ex. message: {ex.Message}");
             throw;
         }
-        finally
+        Log.Info("SerialService Timertask ends");
+    }
+
+    public async Task StopAsync()
+    {
+
+        if (timerTask is null)
         {
-            if (_dev_1 != null)
-            {
-                _dev_1.Close();
-            }
-            if (_dev_2 != null)
-            {
-                _dev_2.Close();
-            }
-            if (_stream_1 != null)
-            {
-                _stream_1.Close();  
-            }
-            if (_stream_2 != null)
-            {
-                _stream_2.Close();
-            }
+            return;
         }
+
+        cts.Cancel();
+        await timerTask;
+        cts.Dispose();
+        Log.Info("ZpumpBackgroundService just stopped");
     }
 
     private static async Task<string> CollectDataLines(StreamReader dev, CancellationTokenSource cts)
@@ -248,6 +264,33 @@ internal class SerialService
                     if (int.TryParse(pair[1], out result))
                     {
                         mppt.PowerPV_W = result;
+                    }
+                    else return false;
+                    break;
+                case "CS":
+                    if (int.TryParse(pair[1], out result))
+                    {
+                        switch (result)
+                        {
+                            case 0:
+                                mppt.State = "Off";
+                                break;
+                            case 2:
+                                mppt.State = "Fault";
+                                break;
+                            case 3:
+                                mppt.State = "Bulk";
+                                break;
+                            case 4:
+                                mppt.State = "Absorption";
+                                break;
+                            case 5:
+                                mppt.State = "Float";
+                                break;
+                            default:
+                                mppt.State = "Unknown";
+                                break;
+                        }
                     }
                     else return false;
                     break;

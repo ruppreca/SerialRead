@@ -27,12 +27,9 @@ class Program
         await kebaBackgroundService.Start(_globalProps);
         await zpumpBackgroundService.Start();
 
-        do
-        {
-            serialService = new();
-            await serialService.Startup(cts, _globalProps);
-            serialService = null;
-        } while (!cts.Token.IsCancellationRequested);
+        serialService = new(TimeSpan.FromSeconds(10));
+        await serialService.Startup(_globalProps);
+
 
         System.Runtime.Loader.AssemblyLoadContext.Default.Unloading += ctx =>
         {
@@ -40,6 +37,8 @@ class Program
             Task stopTask = kebaBackgroundService.StopAsync();
             stopTask.Wait();
             stopTask = zpumpBackgroundService.StopAsync();
+            stopTask.Wait();
+            stopTask = serialService.StopAsync();
             stopTask.Wait();
             cts.Cancel();
         };

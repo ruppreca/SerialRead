@@ -13,6 +13,7 @@ namespace GPIO_Control.Serial.VE.Direct
         public double Vbatt_V { get; set; }
         public double Ibatt_A { get; set; }
         public int PowerPV_W { get; set; }
+        public string State { get; set; }
         public bool HasError { get; set; }
         public string Err { get; set; }
         public bool LoadOn { get; set; }
