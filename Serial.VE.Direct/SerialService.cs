@@ -36,10 +36,10 @@ internal class SerialService
     private static readonly string Org = "ArHome";
     private static readonly string Bucket = "Batterie";
 
-    FileStream _stream_1;
-    StreamReader _dev_1;
-    FileStream _stream_2;
-    StreamReader _dev_2;
+    //FileStream _stream_1;
+    //StreamReader _dev_1;
+    //FileStream _stream_2;
+    //StreamReader _dev_2;
     MpptData _west;
     MpptData _ost;
     InfluxDBClient _client;
@@ -74,40 +74,48 @@ internal class SerialService
     private async Task DoWorkAsync()
     {
         //Log.Info("SerialService run DoWorkAsync");
+        string lineOfText;
         try
         {
             while (!cts.Token.IsCancellationRequested && await _timer.WaitForNextTickAsync(cts.Token))
             {
                 try
                 {
-                    string lineOfText;
-                    FileStream _stream_1 = new FileStream(mppt_1, FileMode.Open, FileAccess.Read);
-                    _dev_1 = new StreamReader(_stream_1, Encoding.UTF8, true, 128);
-                    FileStream _stream_2 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read);
-                    _dev_2 = new StreamReader(_stream_2, Encoding.UTF8, true, 128);
-
-                    //TODO read both devices in parallel and use timeout
+                    //TODO read both devices in parallel
                     s_cts = new CancellationTokenSource();
                     bool writeToDb = true;
+                    s_cts.CancelAfter(3000);
                     try
                     {
-                        s_cts.CancelAfter(3000);
-                        lineOfText = await CollectDataLines(_dev_1, s_cts);
-                        if (!CheckMpttReadout(lineOfText, _west))
+                        
+                        //FileStream _stream_2 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read);
+                        //_dev_2 = new StreamReader(_stream_2, Encoding.UTF8, true, 128);
+                        using (var stream_1 = new FileStream(mppt_1, FileMode.Open, FileAccess.Read))
                         {
-                            Log.Error($"SerialService failed interpert data dev {_west.Name}: {lineOfText}");
-                            writeToDb = false;
+                            using (var dev_1 = new StreamReader(stream_1, Encoding.UTF8, true, 128))
+                            {
+                                lineOfText = await CollectDataLines(dev_1, s_cts);
+                                if (!CheckMpttReadout(lineOfText, _west))
+                                {
+                                    Log.Error($"SerialService failed interpert data dev {_west.Name}: {lineOfText}");
+                                    writeToDb = false;
+                                }
+                                Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, State: {_west.State}, Load {_west.LoadOn}");  }
                         }
-                        Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, State: {_west.State}, Load {_west.LoadOn}");
-
-                        if (cts.IsCancellationRequested) return;
-                        lineOfText = await CollectDataLines(_dev_2, s_cts);
-                        if (!CheckMpttReadout(lineOfText, _ost))
+                        using (var stream_1 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read))
                         {
-                            Log.Error($"SerialService failed interpert data dev {_ost.Name}: {lineOfText}");
-                            writeToDb = false;
+                            using (var dev_1 = new StreamReader(stream_1, Encoding.UTF8, true, 128))
+                            {
+                                if (cts.IsCancellationRequested) return;
+                                lineOfText = await CollectDataLines(dev_1, s_cts);
+                                if (!CheckMpttReadout(lineOfText, _ost))
+                                {
+                                    Log.Error($"SerialService failed interpert data dev {_ost.Name}: {lineOfText}");
+                                    writeToDb = false;
+                                }
+                                Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, State: {_ost.State}, Load {_ost.LoadOn}");
+                            }
                         }
-                        Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, State: {_ost.State}, Load {_ost.LoadOn}");
                     }
                     catch (OperationCanceledException)
                     {
@@ -149,13 +157,6 @@ internal class SerialService
                 {
                     Log.Error($"SerialService failed and ends: {e.Message}");
                     Log.Error(e);
-                }
-                finally
-                {
-                    //_dev_1.Close();
-                    //_dev_2.Close();
-                    //_stream_1.Close();
-                    //_stream_2.Close();
                 }
             }
         }
@@ -205,13 +206,13 @@ internal class SerialService
 
     private static bool CheckMpttReadout(string data, MpptData mppt)
     {
-        byte[] array = Encoding.ASCII.GetBytes(data);
+        //byte[] array = Encoding.ASCII.GetBytes(data);
         byte check = 0;
-        for (int i = 0; i < data.Length; i++)
-        {
-            check += array[i];
-        }
-        Log.Info($"Byte array size: {array.Length}, string: {data.Length}, Checksum: {check}");
+        //for (int i = 0; i < data.Length; i++)
+        //{
+        //    check += array[i];
+        //}
+        //Log.Info($"Byte array size: {array.Length}, string: {data.Length}, Checksum: {check}");
 
         string[] parts = data.Split(';');
         foreach (var item in parts)
