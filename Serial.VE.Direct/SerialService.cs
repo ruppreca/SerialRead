@@ -65,7 +65,7 @@ internal class SerialService
         }
         catch (Exception ex)
         {
-            Log.Error($"SerialService failed to open devices: {ex.Message}");
+            Log.Error($"SerialService failed to init devices: {ex.Message}");
             throw;
         }
         Log.Info("SerialService started success");
@@ -84,43 +84,58 @@ internal class SerialService
                     //TODO read both devices in parallel
                     s_cts = new CancellationTokenSource();
                     bool writeToDb = true;
-                    s_cts.CancelAfter(3000);
+                    s_cts.CancelAfter(6000);
                     try
                     {
-                        
+
                         //FileStream _stream_2 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read);
                         //_dev_2 = new StreamReader(_stream_2, Encoding.UTF8, true, 128);
                         using (var stream_1 = new FileStream(mppt_1, FileMode.Open, FileAccess.Read))
                         {
+                            stream_1.Flush();
                             using (var dev_1 = new StreamReader(stream_1, Encoding.UTF8, true, 128))
                             {
                                 lineOfText = await CollectDataLines(dev_1, s_cts);
+                                if (string.IsNullOrEmpty(lineOfText))
+                                {
+                                    throw new TimeoutException("Reading mppt_2 timed out");
+                                }
                                 if (!CheckMpttReadout(lineOfText, _west))
                                 {
                                     Log.Error($"SerialService failed interpert data dev {_west.Name}: {lineOfText}");
                                     writeToDb = false;
                                 }
-                                Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, State: {_west.State}, Load {_west.LoadOn}");  }
+                                Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, State: {_west.State}, Load {_west.LoadOn}");
+                                dev_1.Close();
+                            }
+                            stream_1.Close();
                         }
                         using (var stream_1 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read))
                         {
+                            stream_1.Flush();
                             using (var dev_1 = new StreamReader(stream_1, Encoding.UTF8, true, 128))
                             {
                                 if (cts.IsCancellationRequested) return;
                                 lineOfText = await CollectDataLines(dev_1, s_cts);
+                                if (string.IsNullOrEmpty(lineOfText))
+                                {
+                                    throw new TimeoutException("Reading mppt_2 timed out");
+                                }
                                 if (!CheckMpttReadout(lineOfText, _ost))
                                 {
                                     Log.Error($"SerialService failed interpert data dev {_ost.Name}: {lineOfText}");
                                     writeToDb = false;
                                 }
                                 Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, State: {_ost.State}, Load {_ost.LoadOn}");
+                                dev_1.Close();
                             }
+                            stream_1.Close();
                         }
                     }
                     catch (OperationCanceledException)
                     {
                         Log.Error($"\nSerialService Tasks cancelled: timed out.\n");
-                        return;
+                        throw;
                     }
                     finally
                     {
@@ -180,7 +195,7 @@ internal class SerialService
         cts.Cancel();
         await timerTask;
         cts.Dispose();
-        Log.Info("ZpumpBackgroundService just stopped");
+        Log.Info("SerialService just stopped");
     }
 
     private static async Task<string> CollectDataLines(StreamReader dev, CancellationTokenSource cts)
@@ -191,12 +206,22 @@ internal class SerialService
         do
         {
             line = await dev.ReadLineAsync(cts.Token);
+            if (cts.IsCancellationRequested)
+            {
+                Log.Error("Timeout cancel while reading PID");
+                return "";
+            }
         }
         while (!line.StartsWith("PID"));
         result = line + ';';
         do
         {
             line = await dev.ReadLineAsync(cts.Token);
+            if (cts.IsCancellationRequested)
+            {
+                Log.Error("Timeout cancel while reading until Checksum");
+                return "";
+            }
             if (line.Length < 2) continue;
             result += line + ';';
         }
@@ -223,18 +248,24 @@ internal class SerialService
             switch (pair[0])
             {
                 case "Checksum":
-                    if (pair[1].Length != 1)
+                    if (pair[1].Length >= 2)
                     {
-                        Log.Error($"SerialService Checksum unexpected dev {mppt.Name}: {pair[1]}");
-                        return false;
+                        if (pair[1][1..].StartsWith(':'))
+                        {
+                            pair[1] = pair[1].Substring(0, 1);
+                        }
+                    }
+                    if (pair[1].Length == 1)
+                    {
+                        byte[] checksum = Encoding.ASCII.GetBytes(pair[1]);
+                        //if (checksum.Length > 0 && checksum[0] == check)
+                        
+                        Log.Info($"Checksum is {BitConverter.ToString(checksum)}");
                     }
                     else
                     {
-                        byte[] checksum = Encoding.ASCII.GetBytes(pair[1]);
-                        if (checksum.Length > 0 && checksum[0] == check)
-                        {
-                            Log.Info($"Checksum is OK");
-                        }
+                        Log.Error($"SerialService Checksum unexpected dev {mppt.Name}: {pair[1]}");
+                        return false;
                     }
                     break;
                 case "SER#":

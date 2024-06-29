@@ -28,8 +28,7 @@ class Program
         await zpumpBackgroundService.Start();
 
         serialService = new(TimeSpan.FromSeconds(10));
-        await serialService.Startup(_globalProps);
-
+        await serialService.Startup(_globalProps); 
 
         System.Runtime.Loader.AssemblyLoadContext.Default.Unloading += ctx =>
         {
