@@ -40,14 +40,14 @@ internal class SerialService
     //StreamReader _dev_1;
     //FileStream _stream_2;
     //StreamReader _dev_2;
-    MpptData _west;
-    MpptData _ost;
+    MpptData _ostWest;
+    MpptData _süd;
     InfluxDBClient _client;
 
     public SerialService(TimeSpan timerInterval)
     {
-        _west = new() { Ser = Serial_1, Name = "West"};
-        _ost = new() { Ser = Serial_2, Name = "Ost" };
+        _ostWest = new() { Ser = Serial_1, Name = "OstWest"};
+        _süd = new() { Ser = Serial_2, Name = "Süd" };
 
         _timer = new(timerInterval);
     }
@@ -101,12 +101,12 @@ internal class SerialService
                                 {
                                     throw new TimeoutException("Reading mppt_2 timed out");
                                 }
-                                if (!CheckMpttReadout(lineOfText, _west))
+                                if (!CheckMpttReadout(lineOfText, _ostWest))
                                 {
-                                    Log.Error($"SerialService failed interpert data dev {_west.Name}: {lineOfText}");
+                                    Log.Error($"SerialService failed interpert data dev {_ostWest.Name}: {lineOfText}");
                                     writeToDb = false;
                                 }
-                                Log.Info($"Mptt {_west.Name}: Vbatt {_west.Vbatt_V}, Ibatt {_west.Ibatt_A}A, Power {_west.PowerPV_W}W, State: {_west.State}, Load {_west.LoadOn}");
+                                Log.Info($"Mptt {_ostWest.Name}: Vbatt {_ostWest.Vbatt_V}, Ibatt {_ostWest.Ibatt_A}A, Power {_ostWest.PowerPV_W}W, State: {_ostWest.State}, Load {_ostWest.LoadOn}");
                                 dev_1.Close();
                             }
                             stream_1.Close();
@@ -122,12 +122,12 @@ internal class SerialService
                                 {
                                     throw new TimeoutException("Reading mppt_2 timed out");
                                 }
-                                if (!CheckMpttReadout(lineOfText, _ost))
+                                if (!CheckMpttReadout(lineOfText, _süd))
                                 {
-                                    Log.Error($"SerialService failed interpert data dev {_ost.Name}: {lineOfText}");
+                                    Log.Error($"SerialService failed interpert data dev {_süd.Name}: {lineOfText}");
                                     writeToDb = false;
                                 }
-                                Log.Info($"Mptt {_ost.Name}: Vbatt {_ost.Vbatt_V}, Ibatt {_ost.Ibatt_A}A, Power {_ost.PowerPV_W}W, State: {_ost.State}, Load {_ost.LoadOn}");
+                                Log.Info($"Mptt {_süd.Name}: Vbatt {_süd.Vbatt_V}, Ibatt {_süd.Ibatt_A}A, Power {_süd.PowerPV_W}W, State: {_süd.State}, Load {_süd.LoadOn}");
                                 dev_1.Close();
                             }
                             stream_1.Close();
@@ -153,10 +153,10 @@ internal class SerialService
                                 // Write by Point
                                 var point = PointData.Measurement("batterie")
                                     //.Tag("location", "west")
-                                    .Field("Vbatt_V", _ost.Vbatt_V)
-                                    .Field("Ibatt_A", (_ost.Ibatt_A + _west.Ibatt_A))
-                                    .Field("WestPV_W", _west.PowerPV_W)
-                                    .Field("OstPV_W", _ost.PowerPV_W)
+                                    .Field("Vbatt_V", _süd.Vbatt_V)
+                                    .Field("Ibatt_A", (_süd.Ibatt_A + _ostWest.Ibatt_A))
+                                    .Field("OstWestPV_W", _ostWest.PowerPV_W)
+                                    .Field("SüdPV_W", _süd.PowerPV_W)
                                     .Timestamp(DateTime.UtcNow, WritePrecision.S);
 
                                 writeApi.WritePoint(point, Bucket, Org);

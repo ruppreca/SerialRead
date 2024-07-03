@@ -183,6 +183,7 @@ internal class PwmKemo
     }
 
     private const int MaxHm600Power = 600;  // in Watt
+    private const int MinHm600Power = 50;
     double kHm = 0.5; // control factor for Hm-600 "Nulleinspeisung"
     int _oldPower = 0;
     internal async Task<int> limitHm600Power(int powerConsumed)
@@ -199,13 +200,13 @@ internal class PwmKemo
         else if (powerConsumed <= -wantedInfeedpower)
         {
             Hm600Power += (int)(powerConsumed * kHm);  //a decrease is done because powerConsumed is negative
-            if (Hm600Power < 0)
+            if (Hm600Power < MinHm600Power)
             {
-                Hm600Power = 0;
+                Hm600Power = MinHm600Power;
             }
             Log.Debug($"HM-600 power reduced to {Hm600Power}, consumed {powerConsumed}");
         }
-        //if(Hm600Power > _oldPower +10 || Hm600Power < _oldPower - 10) // das hat nicht so gefunzt
+        if(Hm600Power > _oldPower +10 || Hm600Power < _oldPower - 10) // das hat nicht so gefunzt ,-> nochmal test a 240703
         if(Hm600Power != _oldPower)
         {
             _oldPower = Hm600Power;
