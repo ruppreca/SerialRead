@@ -19,7 +19,7 @@ class Program
 
     static async Task Main(string[] args)
     {
-        Log.Info("/n/nStartup Gpio-Control main");
+        Log.Info("\n\nStartup Gpio-Control main");
 
         try
         {
