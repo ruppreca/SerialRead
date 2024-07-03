@@ -73,6 +73,7 @@ internal class SerialService
 
     private async Task DoWorkAsync()
     {
+        //TODO: nicht bei nacht auslesen ?
         //Log.Info("SerialService run DoWorkAsync");
         string lineOfText;
         try
@@ -84,7 +85,7 @@ internal class SerialService
                     //TODO read both devices in parallel
                     s_cts = new CancellationTokenSource();
                     bool writeToDb = true;
-                    s_cts.CancelAfter(6000);
+                    s_cts.CancelAfter(9000);
                     try
                     {
 
@@ -260,7 +261,7 @@ internal class SerialService
                         byte[] checksum = Encoding.ASCII.GetBytes(pair[1]);
                         //if (checksum.Length > 0 && checksum[0] == check)
                         
-                        Log.Info($"Checksum is {BitConverter.ToString(checksum)}");
+                        //Log.Info($"Checksum is {BitConverter.ToString(checksum)}");
                     }
                     else
                     {

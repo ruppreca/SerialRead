@@ -19,16 +19,31 @@ class Program
 
     static async Task Main(string[] args)
     {
-        Log.Info("Startup Gpio-Control main");
+        Log.Info("/n/nStartup Gpio-Control main");
 
-        kebaBackgroundService = new(TimeSpan.FromSeconds(5));
-        zpumpBackgroundService = new(TimeSpan.FromSeconds(5));
-        
-        await kebaBackgroundService.Start(_globalProps);
-        await zpumpBackgroundService.Start();
+        try
+        {
+            kebaBackgroundService = new(TimeSpan.FromSeconds(5));
+            zpumpBackgroundService = new(TimeSpan.FromSeconds(5));
 
-        serialService = new(TimeSpan.FromSeconds(10));
-        await serialService.Startup(_globalProps); 
+            await kebaBackgroundService.Start(_globalProps);
+            await zpumpBackgroundService.Start();
+
+            serialService = new(TimeSpan.FromSeconds(10));
+            await serialService.Startup(_globalProps);
+
+            while (!cts.Token.IsCancellationRequested)
+            {
+                Log.Debug("Main still running");
+                await Task.Delay(TimeSpan.FromSeconds(10), cts.Token);
+            }
+            cts.Dispose();
+        }
+        catch (Exception e)
+        {
+            Log.Error($"Main ends with exception: {e.Message}");
+            throw;
+        }
 
         System.Runtime.Loader.AssemblyLoadContext.Default.Unloading += ctx =>
         {
@@ -41,13 +56,6 @@ class Program
             stopTask.Wait();
             cts.Cancel();
         };
-
-        while (!cts.Token.IsCancellationRequested)
-        {
-            Log.Debug("Main still running");
-            await Task.Delay(TimeSpan.FromSeconds(10), cts.Token);
-        }
-        cts.Dispose();  
     }
 }
 
