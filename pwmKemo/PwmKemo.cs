@@ -29,7 +29,7 @@ internal class PwmKemo
     public string Period { get; set; } = "1000000"; //period 1ms
     public int DutyCycle { get; set; } = 0;
     public int HeaterPower { get; set; } = 0;
-    public int Hm600Power { get; set; } = 0;
+    public int Hm600Power { get; set; } = MinHm600Power;
 
     private bool _heaterOff = false;
     public PwmKemo(GpioPins gpio)
@@ -89,7 +89,7 @@ internal class PwmKemo
         }
     }
 
-    private const int wantedInfeedpower = 5;
+    private const int wantedInfeedpower = 10;
     double k = 0.6; // control factor
     public int controlPower(int powerConsumed) // is the power readout from Stromzähler
     {
@@ -207,7 +207,7 @@ internal class PwmKemo
             Log.Debug($"HM-600 power reduced to {Hm600Power}, consumed {powerConsumed}");
         }
         if(Hm600Power > _oldPower +10 || Hm600Power < _oldPower - 10) // das hat nicht so gefunzt ,-> nochmal test a 240703
-        if(Hm600Power != _oldPower)
+        //if(Hm600Power != _oldPower)
         {
             _oldPower = Hm600Power;
             await SetHM600Power(Hm600Power);
@@ -219,7 +219,7 @@ internal class PwmKemo
     private async Task SetHM600Power(int power)
     {
         power = power > 600 ? 600 : power;
-        power = power < 0 ? 0 : power;
+        power = power < MinHm600Power ? MinHm600Power : power;
         string myJson = $"{{\"id\": 0, \"cmd\": \"limit_nonpersistent_absolute\", \"val\": {power}}}";
 
         var response = await _client.PostAsync(AhoyUrl, new StringContent(myJson, Encoding.UTF8, "application/json"));
