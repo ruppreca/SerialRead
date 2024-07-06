@@ -135,8 +135,7 @@ internal class SerialService
                     }
                     catch (OperationCanceledException)
                     {
-                        Log.Error($"\nSerialService Tasks cancelled: timed out.\n");
-                        throw;
+                        Log.Error($"\nCollectDataLines Tasks cancelled: timed out.\n");  
                     }
                     finally
                     {
@@ -171,7 +170,7 @@ internal class SerialService
                 }
                 catch (Exception e)
                 {
-                    Log.Error($"SerialService failed and ends: {e.Message}");
+                    Log.Error($"Exeption in SerialService while loop: {e.Message}");
                     Log.Error(e);
                 }
             }
@@ -187,12 +186,10 @@ internal class SerialService
 
     public async Task StopAsync()
     {
-
         if (timerTask is null)
         {
             return;
         }
-
         cts.Cancel();
         await timerTask;
         cts.Dispose();
@@ -226,7 +223,7 @@ internal class SerialService
             if (line.Length < 2) continue;
             result += line + ';';
         }
-        while (!line.StartsWith("Checksum"));
+        while (!line.StartsWith("Checksum") );
         return result;
     }
 
