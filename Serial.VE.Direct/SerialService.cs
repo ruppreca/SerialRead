@@ -199,32 +199,40 @@ internal class SerialService
     private static async Task<string> CollectDataLines(StreamReader dev, CancellationTokenSource cts)
     {
         // nach eineger Zeit läuft der ReadLineAsync für immer, braucht timeout und dann neustart des service
-        string result;
-        string line;
-        do
+        try
         {
-            line = await dev.ReadLineAsync(cts.Token);
-            if (cts.IsCancellationRequested)
+            string result;
+            string line;
+            do
             {
-                Log.Error("Timeout cancel while reading PID");
-                return "";
+                line = await dev.ReadLineAsync(cts.Token);
+                if (cts != null && cts.IsCancellationRequested)
+                {
+                    Log.Error("Timeout cancel while reading PID");
+                    return "";
+                }
             }
+            while (!line.StartsWith("PID"));
+            result = line + ';';
+            do
+            {
+                line = await dev.ReadLineAsync(cts.Token);
+                if (cts != null && cts.IsCancellationRequested)
+                {
+                    Log.Error("Timeout cancel while reading until Checksum");
+                    return "";
+                }
+                if (line.Length < 2) continue;
+                result += line + ';';
+            }
+            while (!line.StartsWith("Checksum"));
+            return result;
         }
-        while (!line.StartsWith("PID"));
-        result = line + ';';
-        do
+        catch (Exception ex)
         {
-            line = await dev.ReadLineAsync(cts.Token);
-            if (cts.IsCancellationRequested)
-            {
-                Log.Error("Timeout cancel while reading until Checksum");
-                return "";
-            }
-            if (line.Length < 2) continue;
-            result += line + ';';
+            Log.Error($"Exception while reading serial: {ex.Message}");
+            return null;
         }
-        while (!line.StartsWith("Checksum") );
-        return result;
     }
 
     private static bool CheckMpttReadout(string data, MpptData mppt)
@@ -245,27 +253,27 @@ internal class SerialService
             if (pair.Length != 2) continue;
             switch (pair[0])
             {
-                case "Checksum":
-                    if (pair[1].Length >= 2)
-                    {
-                        if (pair[1][1..].StartsWith(':'))
-                        {
-                            pair[1] = pair[1].Substring(0, 1);
-                        }
-                    }
-                    if (pair[1].Length == 1)
-                    {
-                        byte[] checksum = Encoding.ASCII.GetBytes(pair[1]);
-                        //if (checksum.Length > 0 && checksum[0] == check)
+                //case "Checksum":
+                //    if (pair[1].Length >= 2)
+                //    {
+                //        if (pair[1][1..].StartsWith(':'))
+                //        {
+                //            pair[1] = pair[1].Substring(0, 1);
+                //        }
+                //    }
+                //    if (pair[1].Length == 1)
+                //    {
+                //        byte[] checksum = Encoding.ASCII.GetBytes(pair[1]);
+                //        //if (checksum.Length > 0 && checksum[0] == check)
                         
-                        //Log.Info($"Checksum is {BitConverter.ToString(checksum)}");
-                    }
-                    else
-                    {
-                        Log.Error($"SerialService Checksum unexpected dev {mppt.Name}: {pair[1]}");
-                        return false;
-                    }
-                    break;
+                //        //Log.Info($"Checksum is {BitConverter.ToString(checksum)}");
+                //    }
+                //    else
+                //    {
+                //        //Log.Error($"SerialService Checksum unexpected dev {mppt.Name}: {pair[1]}");
+                //        //return false;
+                //    }
+                //    break;
                 case "SER#":
                     if (pair[1] != mppt.Ser)
                     {
