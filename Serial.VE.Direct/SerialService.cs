@@ -1,21 +1,14 @@
-﻿using GPIOControl.PwmKemo;
-using GPIOControl;
-using NLog;
+﻿using NLog;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
-using System.IO.Pipes;
-using System.Runtime.ConstrainedExecution;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
-using System.Diagnostics;
-using System.Timers;
-using System.Reactive;
+using SerialRead.Serial.VE.Direct;
+using SerialRead;
 
 namespace GPIO_Control.Serial.VE.Direct;
 
@@ -36,10 +29,6 @@ internal class SerialService
     private static readonly string Org = "ArHome";
     private static readonly string Bucket = "Batterie";
 
-    //FileStream _stream_1;
-    //StreamReader _dev_1;
-    //FileStream _stream_2;
-    //StreamReader _dev_2;
     MpptData _ostWest;
     MpptData _süd;
     InfluxDBClient _client;
@@ -85,7 +74,7 @@ internal class SerialService
                     //TODO read both devices in parallel
                     s_cts = new CancellationTokenSource();
                     bool writeToDb = true;
-                    s_cts.CancelAfter(9000);
+                    s_cts.CancelAfter(5000);
                     try
                     {
 

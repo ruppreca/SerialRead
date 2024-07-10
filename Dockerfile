@@ -9,20 +9,20 @@ RUN apk upgrade --no-cache && apk add --no-cache postgresql-client bash openssl 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["GPIO-Control.csproj", "."]
-RUN dotnet restore "./././GPIO-Control.csproj"
+COPY ["SerialRead.csproj", "."]
+RUN dotnet restore "./././SerialRead.csproj"
 COPY . .
 WORKDIR "/src/."
-RUN dotnet build "./GPIO-Control.csproj" -c $BUILD_CONFIGURATION -o /app/build -r linux-musl-arm64
+RUN dotnet build "./SerialRead.csproj" -c $BUILD_CONFIGURATION -o /app/build -r linux-musl-arm64
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 # Publish as single file
-# RUN dotnet publish "./GPIO-Control.csproj" -c $BUILD_CONFIGURATION -r linux-musl-arm64 -o /app/publish /p:UseAppHost=true /p:PublishSingleFile=true
-RUN dotnet publish "./GPIO-Control.csproj" -c $BUILD_CONFIGURATION -r linux-musl-arm64 -o /app/publish /p:UseAppHost=true
+# RUN dotnet publish "./SerialRead.csproj" -c $BUILD_CONFIGURATION -r linux-musl-arm64 -o /app/publish /p:UseAppHost=true /p:PublishSingleFile=true
+RUN dotnet publish "./SerialRead.csproj" -c $BUILD_CONFIGURATION -r linux-musl-arm64 -o /app/publish /p:UseAppHost=true
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
-ENTRYPOINT ["./GPIO-Control"]
+ENTRYPOINT ["./SerialRead"]

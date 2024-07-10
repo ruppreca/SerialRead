@@ -2,8 +2,8 @@ version: '3'
 
 services:
     gpiocontrol:
-        image: ruppreca/gpiocontrol:latest
-        container_name: gpiocontrol
+        image: ruppreca/serialread:latest
+        container_name: serialread
         restart: always
         user: 1000:993
         privileged: true
@@ -14,7 +14,7 @@ services:
             - /etc/timezone:/etc/timezone:ro
             - /etc/localtime:/etc/localtime:ro
             - /sys/class/pwm/pwmchip0:/sys/class/pwm/pwmchip0:rw
-            - /var/log/gpiocontrol:/var/log/gpiocontrol:rw
+            - /var/log/serialread:/var/log/serialread:rw
 
 networks:
     default:

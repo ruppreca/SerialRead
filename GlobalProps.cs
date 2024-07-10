@@ -1,4 +1,4 @@
-﻿namespace GPIOControl;
+﻿namespace SerialRead;
 
 public class GlobalProps
 {

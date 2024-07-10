@@ -7,7 +7,7 @@ using MQTTnet;
 using MQTTnet.Client;
 using System.Text;
 
-namespace GPIOControl;
+namespace SerialRead;
 
 internal class Mqtt
 {

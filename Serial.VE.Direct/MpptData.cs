@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace GPIO_Control.Serial.VE.Direct
+namespace SerialRead.Serial.VE.Direct
 {
     internal class MpptData
     {

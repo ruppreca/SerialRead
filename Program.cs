@@ -1,34 +1,26 @@
-﻿using NLog;
+﻿using GPIO_Control.Serial.VE.Direct;
+using NLog;
+using SerialRead;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using GPIOControl.PwmKemo;
-using GPIO_Control.Zpump;
-using GPIO_Control.Serial.VE.Direct;
 
-namespace GPIOControl;
+
+namespace SerialRead;
 
 class Program
 {
     private static Logger Log = LogManager.GetCurrentClassLogger();
-    private static KebaBackgroundService kebaBackgroundService;
-    private static ZpumpBackgroundService zpumpBackgroundService;
     private static SerialService serialService;
     private static readonly CancellationTokenSource cts = new();
     public  static GlobalProps _globalProps = new();
 
     static async Task Main(string[] args)
     {
-        Log.Info("\n\nStartup Gpio-Control main");
+        Log.Info("\n\nStartup SerialRead main");
 
         try
         {
-            kebaBackgroundService = new(TimeSpan.FromSeconds(5));
-            zpumpBackgroundService = new(TimeSpan.FromSeconds(5));
-
-            await kebaBackgroundService.Start(_globalProps);
-            await zpumpBackgroundService.Start();
-
             serialService = new(TimeSpan.FromSeconds(10));
             await serialService.Startup(_globalProps);
 
@@ -48,11 +40,7 @@ class Program
         System.Runtime.Loader.AssemblyLoadContext.Default.Unloading += ctx =>
         {
             Log.Info("Main Unloading was called");
-            Task stopTask = kebaBackgroundService.StopAsync();
-            stopTask.Wait();
-            stopTask = zpumpBackgroundService.StopAsync();
-            stopTask.Wait();
-            stopTask = serialService.StopAsync();
+            Task stopTask = serialService.StopAsync();
             stopTask.Wait();
             cts.Cancel();
         };
