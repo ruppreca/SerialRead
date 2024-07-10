@@ -7,10 +7,8 @@ using System.IO;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
-using SerialRead.Serial.VE.Direct;
-using SerialRead;
 
-namespace GPIO_Control.Serial.VE.Direct;
+namespace SerialRead.Serial.VE.Direct;
 
 internal class SerialService
 {
@@ -77,29 +75,26 @@ internal class SerialService
                     s_cts.CancelAfter(5000);
                     try
                     {
-
-                        //FileStream _stream_2 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read);
-                        //_dev_2 = new StreamReader(_stream_2, Encoding.UTF8, true, 128);
-                        //using (var stream_1 = new FileStream(mppt_1, FileMode.Open, FileAccess.Read))
-                        //{
-                        //    stream_1.Flush();
-                        //    using (var dev_1 = new StreamReader(stream_1, Encoding.UTF8, true, 128))
-                        //    {
-                        //        lineOfText = await CollectDataLines(dev_1, s_cts);
-                        //        if (string.IsNullOrEmpty(lineOfText))
-                        //        {
-                        //            throw new TimeoutException("Reading mppt_1 timed out");
-                        //        }
-                        //        if (!CheckMpttReadout(lineOfText, _ostWest))
-                        //        {
-                        //            Log.Error($"SerialService failed interpert data dev {_ostWest.Name}: {lineOfText}");
-                        //            writeToDb = false;
-                        //        }
-                        //        Log.Info($"Mptt {_ostWest.Name}: Vbatt {_ostWest.Vbatt_V}, Ibatt {_ostWest.Ibatt_A}A, Power {_ostWest.PowerPV_W}W, State: {_ostWest.State}, Load {_ostWest.LoadOn}");
-                        //        dev_1.Close();
-                        //    }
-                        //    stream_1.Close();
-                        //}
+                        using (var stream_1 = new FileStream(mppt_1, FileMode.Open, FileAccess.Read))
+                        {
+                            stream_1.Flush();
+                            using (var dev_1 = new StreamReader(stream_1, Encoding.UTF8, true, 128))
+                            {
+                                lineOfText = await CollectDataLines(dev_1, s_cts);
+                                if (string.IsNullOrEmpty(lineOfText))
+                                {
+                                    throw new TimeoutException("Reading mppt_1 timed out");
+                                }
+                                if (!CheckMpttReadout(lineOfText, _ostWest))
+                                {
+                                    Log.Error($"SerialService failed interpert data dev {_ostWest.Name}: {lineOfText}");
+                                    writeToDb = false;
+                                }
+                                Log.Info($"Mptt {_ostWest.Name}: Vbatt {_ostWest.Vbatt_V}, Ibatt {_ostWest.Ibatt_A}A, Power {_ostWest.PowerPV_W}W, State: {_ostWest.State}, Load {_ostWest.LoadOn}");
+                                dev_1.Close();
+                            }
+                            stream_1.Close();
+                        }
                         using (var stream_1 = new FileStream(mppt_2, FileMode.Open, FileAccess.Read))
                         {
                             stream_1.Flush();

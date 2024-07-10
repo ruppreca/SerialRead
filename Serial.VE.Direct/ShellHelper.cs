@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 
-namespace GPIO_Control.Serial.VE.Direct;
+namespace SerialRead.Serial.VE.Direct;
 
 
 

@@ -1,6 +1,5 @@
-﻿using GPIO_Control.Serial.VE.Direct;
-using NLog;
-using SerialRead;
+﻿using NLog;
+using SerialRead.Serial.VE.Direct;
 using System;
 using System.Threading;
 using System.Threading.Tasks;

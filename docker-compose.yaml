@@ -1,7 +1,7 @@
 version: '3'
 
 services:
-    gpiocontrol:
+    serialread:
         image: ruppreca/serialread:latest
         container_name: serialread
         restart: always
