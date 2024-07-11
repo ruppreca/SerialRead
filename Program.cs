@@ -41,6 +41,7 @@ class Program
             Log.Info("Main Unloading was called");
             Task stopTask = serialService.StopAsync();
             stopTask.Wait();
+            Thread.Sleep(300);
             cts.Cancel();
         };
     }
