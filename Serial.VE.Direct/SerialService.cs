@@ -65,7 +65,7 @@ internal class SerialService
         {
             while (!_cts.Token.IsCancellationRequested && await _timer.WaitForNextTickAsync(_cts.Token))
             {
-                //Log.Info("DoWorkAsync beginns");
+                Log.Debug("DoWorkAsync beginns");
                 try
                 {
                     bool writeToDb = true;
@@ -85,7 +85,7 @@ internal class SerialService
                         }
                         else
                         {
-                            Log.Error($"Task mppt_1 failed: {task1.Status}, result is {result}");
+                            Log.Error($"Task mppt_1 timeout: {task1.Status}, result is {result[0]}");
                             writeToDb = false;
                         }
                         if (task2.IsCompletedSuccessfully && result[1] != null)
@@ -99,7 +99,7 @@ internal class SerialService
                         }
                         else
                         {
-                            Log.Error($"Task mppt_2 failed: {task2.Status}, result is {result}");
+                            Log.Error($"Task mppt_2 timeout: {task2.Status}, result is {result[1]}");
                             writeToDb = false;
                         }
                     }
@@ -107,10 +107,6 @@ internal class SerialService
                     {
                         Log.Error($"\nAggregateException from serial read {ex.Message}\n");
                         Log.Error(ex);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        Log.Error($"\nCollectDataLines Tasks timed out.\n");
                     }
 
                     if (_cts.IsCancellationRequested) return;
@@ -189,12 +185,19 @@ internal class SerialService
                 bool foundPI = false;
                 while (!foundPI) // find the bytes accoding to "PI" 
                 {
-                    if (s_cts.IsCancellationRequested) return null;
-                    while (offset < 50) // read 100 bytes //TODO why is the 50 critical ????
+                    if (s_cts.IsCancellationRequested)
+                    {
+                        Log.Error($"Cancel happed, {mppt} while loop for foundPI timeout");
+                        string content = Encoding.UTF8.GetString(buffer, 0, offset);
+                        Log.Error($"Readout until cancel: {content}");
+                        return null;
+                    }
+                    int lastOffset = offset;
+                    while (offset < lastOffset + 50) // read 100 bytes //TODO why is the 50 critical ????
                     {
                         offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
                     }
-                    for (int i = 0; i < offset; i++)
+                    for (int i = lastOffset; i < offset; i++)
                     {
                         if (buffer[i] == 'P')
                         {
@@ -202,7 +205,7 @@ internal class SerialService
                             if (i < offset && buffer[i + 1] == 'I')
                             {
                                 foundPI = true;
-                                Log.Info($"{mppt} foundPI {foundPI} at {Poffset}");
+                                Log.Debug($"{mppt} foundPI {foundPI} at {Poffset}");
                                 break;
                             }
                         }
@@ -213,19 +216,18 @@ internal class SerialService
                 bool foundCh = false;
                 while (!foundCh) // find the byte according to "Ch" 
                 {
-                    if (s_cts.IsCancellationRequested) return null;
+                    if (s_cts.IsCancellationRequested)
+                    {
+                        Log.Error($"Cancel happed, {mppt} while loop for foundCh");
+                        return null;
+                    }
                     int startindex = offset;
                     int readcount = 100;
                     while (offset < startindex + 50 && readcount-- > 0) // read 50 bytes
                     {
                         offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
                     }
-                    if(readcount <= 0)
-                    {
-                        Log.Info($"{mppt} readcount exceeded 100, read fail");
-                        return null;
-                    }
-                    for (int i = Poffset; i < offset; i++)
+                    for (int i = Poffset + startindex; i < offset; i++)
                     {
                         if (buffer[i] == 'C')
                         {
@@ -233,7 +235,7 @@ internal class SerialService
                             if (i < offset && buffer[i + 1] == 'h')
                             {
                                 foundCh = true;
-                                Log.Info($"{mppt} foundCh {foundCh} at {Choffset}");
+                                Log.Debug($"{mppt} foundCh {foundCh} at {Choffset}");
                                 break;
                             }
                         }
@@ -262,6 +264,7 @@ internal class SerialService
                 //Log.Info($"checksum used\n{BitConverter.ToString(checkbytes, 0, end)}");
                 
                 //Log.Info($"data\n{BitConverter.ToString(buffer, Poffset, Choffset - Poffset + 10)}");
+
                 string result = Encoding.UTF8.GetString(buffer, Poffset, Choffset - Poffset + 10);
                 //Log.Info($"reads:\n{result}");
                 return result;
@@ -269,7 +272,7 @@ internal class SerialService
         }
         catch (Exception ex)
         {
-            Log.Error($"Exception while reading serial: {ex.Message}");
+            Log.Error($"Exception while reading serial {mppt}: {ex.Message}");
             return null;
         }
         finally
