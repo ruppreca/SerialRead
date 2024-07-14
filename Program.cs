@@ -21,13 +21,10 @@ class Program
         try
         {
             serialService = new(TimeSpan.FromSeconds(10));
-            await serialService.Startup(_globalProps);
+            Task serial = serialService.Startup(_globalProps, cts);
+            await serial;
 
-            while (!cts.Token.IsCancellationRequested)
-            {
-                Log.Debug("Main still running");
-                await Task.Delay(TimeSpan.FromSeconds(10), cts.Token);
-            }
+            Log.Info($"Main ends. cts was canceled? : serialService task status: {serial.Status}");
             cts.Dispose();
         }
         catch (Exception e)

@@ -19,4 +19,18 @@ namespace SerialRead.Serial.VE.Direct
         public bool LoadOn { get; set; }
 
     }
+
+    internal class ShuntData
+    {
+        public string Name { get; set; }
+        public double Vbatt_V { get; set; } //V
+        public double Ibatt_A { get; set; } //A
+        public double SOC { get; set; } // % State of Charge
+        public double DM { get; set; } // % Midpoint deviation
+        public int Power_W { get; set; }
+        public int TimeToGo_min { get; set; }
+        public double Consumed_Ah { get; set; }//Consumed Amp Hours
+        public bool HasError { get; set; }
+        public string Err { get; set; }
+    }
 }
