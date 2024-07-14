@@ -232,7 +232,7 @@ internal class SerialService
                             {
                                 foundPI = true;
                                 Poffset = i-2;
-                                Log.Info($"{mppt} foundPI {foundPI} at {Poffset}");
+                                //Log.Info($"{mppt} foundPI {foundPI} at {Poffset}");
                                 break;
                             }
                         }
@@ -258,12 +258,12 @@ internal class SerialService
                     {
                         if (buffer[i] == 'e')  // Poffset + startindex - 2 is always >= 0
                         {
-                            Log.Info($"{mppt} found e at {i}");
+                            //Log.Info($"{mppt} found e at {i}");
                             if (buffer[i - 1] == 'h' && buffer[i - 2] == 'C')
                             {
                                 foundCh = true;
                                 Choffset = i-2;
-                                Log.Info($"{mppt} foundCh {foundCh} at {Choffset}");
+                                //Log.Info($"{mppt} foundCh {foundCh} at {Choffset}");
                                 break;
                             }
                         }
@@ -297,6 +297,7 @@ internal class SerialService
                 //Log.Info($"checksum used\n{BitConverter.ToString(checkbytes, 0, end)}");
                 //Log.Info($"data\n{BitConverter.ToString(buffer, Poffset, Choffset - Poffset + 10)}");
                 //}
+
 
                 string result = Encoding.UTF8.GetString(buffer, Poffset, Choffset - Poffset + 10);
                 //Log.Info($"reads:\n{result}");
