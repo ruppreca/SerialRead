@@ -7,6 +7,7 @@ using System.IO;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
+using NodaTime;
 
 namespace SerialRead.Serial.VE.Direct;
 
@@ -70,13 +71,13 @@ internal class SerialService
 
     private async Task DoWorkAsync()
     {
-        //TODO: nicht bei nacht auslesen ?
+        //TODO: nicht Alles bei nacht auslesen ??
         //Log.Info("SerialService run DoWorkAsync");
         try
         {
             while (!_cts.Token.IsCancellationRequested && await _timer.WaitForNextTickAsync(_cts.Token))
             {
-                Log.Debug("DoWorkAsync beginns");
+                Log.Info("DoWorkAsync beginns");
                 try
                 {
                     bool writeToDb = true;
@@ -93,7 +94,7 @@ internal class SerialService
                                 Log.Error($"SerialService failed interpert data dev {_ostWest.Name}: {result[0]}");
                                 writeToDb = false;
                             }
-                            Log.Info($"Mptt {_ostWest.Name}: Vbatt {_ostWest.Vbatt_V}, Ibatt {_ostWest.Ibatt_A}A, Power {_ostWest.PowerPV_W}W, State: {_ostWest.State}, Load {_ostWest.LoadOn}");
+                            Log.Info($"Mptt {_ostWest.Name}: Vbatt {_ostWest.Vbatt_V:0.00}, Ibatt {_ostWest.Ibatt_A:0.00}A, Power {_ostWest.PowerPV_W}W, State: {_ostWest.State}, Load {_ostWest.LoadOn}");
                         }
                         else
                         {
@@ -107,7 +108,7 @@ internal class SerialService
                                 Log.Error($"SerialService failed interpert data dev {_süd.Name}: {result[1]}");
                                 writeToDb = false;
                             }
-                            Log.Info($"Mptt {_süd.Name}: Vbatt {_süd.Vbatt_V}V, Ibatt {_süd.Ibatt_A}A, Power {_süd.PowerPV_W}W, State: {_süd.State}, Load {_süd.LoadOn}");
+                            Log.Info($"Mptt {_süd.Name}: Vbatt {_süd.Vbatt_V:0.00}V, Ibatt {_süd.Ibatt_A:0.00}A, Power {_süd.PowerPV_W}W, State: {_süd.State}, Load {_süd.LoadOn}");
                         }
                         else
                         {
@@ -121,7 +122,7 @@ internal class SerialService
                                 Log.Error($"SerialService failed interpert data dev {_shunt.Name}: {result[2]}");
                                 writeToDb = false;
                             }
-                            Log.Info($"Shunt: SOC {_shunt.SOC}%, Vbatt {_shunt.Vbatt_V}V, Ibatt {_shunt.Ibatt_A}A, Power {_shunt.Power_W}W, TimeToGo {_shunt.TimeToGo_min}min, Consumed_Ah {_shunt.Consumed_Ah}Ah, DM {_shunt.DM}%");
+                            Log.Info($"Shunt: SOC {_shunt.SOC:0.0}%, Vbatt {_shunt.Vbatt_V:0.00}V, Ibatt {_shunt.Ibatt_A:0.00}A, Power {_shunt.Power_W}W, TimeToGo {_shunt.TimeToGo_min}min, Consumed_Ah {_shunt.Consumed_Ah:0.00}Ah, DM {_shunt.DM:0.0}%");
                         }
                         else
                         {
@@ -177,11 +178,16 @@ internal class SerialService
                 }
             }
         }
+        catch (AggregateException ex)
+        {
+            Log.Error($"\nAggregateException in SerialService DoWorkAsync: {ex.Message}\n");
+            Log.Error(ex);
+        }
         catch (Exception ex)
         {
-            Log.Error("Exception in SerialService DoWorkAsync");
-            Log.Error($"Ex. message: {ex.Message}");
-            throw;
+            Log.Error("Exception in SerialService DoWorkAsync: {ex.Message}");
+            Log.Error(ex);
+            //throw;
         }
     }
 
@@ -201,7 +207,7 @@ internal class SerialService
     private static async Task<string> CollectDataLines(string mppt)
     {
         var s_cts = new CancellationTokenSource();
-        s_cts.CancelAfter(3000);
+        s_cts.CancelAfter(2000);
         byte[] buffer = new byte[1000];
         int offset = 0;
         try
@@ -209,7 +215,7 @@ internal class SerialService
             using (var stream = new FileStream(mppt, FileMode.Open, FileAccess.Read))
             {
           
-                int Poffset = 0;
+                int Poffset = -1;  // if one byte is retured from read, then offset is 0, points to buffer[0]
                 bool foundPI = false;
                 while (!foundPI) // find the bytes accoding to "PI" 
                 {
@@ -224,7 +230,8 @@ internal class SerialService
                     {
                         offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
                     }
-                    for (int i = lastOffset - 2; i < offset; i++) // search bytes for PID in reverse order
+                    // offset zeigt auf das nächste leer byte im Buffer
+                    for (int i = lastOffset; i < offset; i++) // search bytes for PID in reverse order
                     {
                         if (buffer[i] == 'D' && lastOffset > 1) // make shure buffer[i] to [i+2] is vaild
                         {
@@ -239,6 +246,8 @@ internal class SerialService
                     }
                 }
 
+                s_cts = new CancellationTokenSource();
+                s_cts.CancelAfter(800);  // rest of string must be fast << 1sec
                 int Choffset = 0;
                 bool foundCh = false;
                 while (!foundCh) // find the byte according to "Ch" 
@@ -254,7 +263,7 @@ internal class SerialService
                     {
                         offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
                     }
-                    for (int i = startindex - 2; i < offset; i++) // search bytes for Che in reverse order
+                    for (int i = startindex; i < offset; i++) // search bytes for Che in reverse order
                     {
                         if (buffer[i] == 'e')  // Poffset + startindex - 2 is always >= 0
                         {
@@ -269,37 +278,32 @@ internal class SerialService
                         }
                     }
                 }
-                //while (offset < Choffset + 10) // check all bytes up to checksum bye are read
-                //{
-                //    int bytes = await stream.ReadAsync(buffer, offset, Choffset + 10 - offset, s_cts.Token);
-                //    offset += bytes;
-                //    Log.Info($"{mppt} read bytes after foundCh to  {offset}");
-                //}
 
-                //byte sum = 0;
-                //sum += (byte)'\r'; // add a 0d 0a before the PID found (https://www.victronenergy.com/live/vedirect_protocol:faq#q8how_do_i_calculate_the_text_checksum)
-                //sum += (byte)'\n';
-                //int end = Choffset - Poffset + 10;
-                //byte[] checkbytes = new byte[300];
+                byte sum = 23; // add a 0d 0a before the PID found  (https://www.victronenergy.com/live/vedirect_protocol:faq#q8how_do_i_calculate_the_text_checksum)
+                int end = Choffset - Poffset + 10; 
+                //byte[] checkbytes = new byte[500];
+
+                //Log.Info($"data\n{BitConverter.ToString(buffer, Poffset, end)}");  // end must be lenght
+
                 //int j = 0;
-                //for (int i = Poffset; i < end + 3; i++)
-                //{
-                //    if (i < end && buffer[i] == '\n' && buffer[i + 1] == '\n')
-                //    {
-                //        buffer[i] = (byte)'\r';
-                //    }
-                //    sum += buffer[i];
-                //    checkbytes[j++] = buffer[i];
-                //}
-                //Log.Info($"{mppt} Collected from {Poffset} to {end + 2} bytes, sum = {sum}");
-
-                //if(mppt == shunt) { 
-                //Log.Info($"checksum used\n{BitConverter.ToString(checkbytes, 0, end)}");
-                //Log.Info($"data\n{BitConverter.ToString(buffer, Poffset, Choffset - Poffset + 10)}");
-                //}
-
-
-                string result = Encoding.UTF8.GetString(buffer, Poffset, Choffset - Poffset + 10);
+                for (int i = Poffset; i < Poffset + end; i++)
+                {
+                    if (i < Poffset + end -1 && buffer[i] == '\n' && buffer[i + 1] == '\n')
+                    {
+                        sum += (byte)'\r';
+                    }
+                    else
+                    { 
+                        sum += buffer[i]; 
+                    }
+                    //checkbytes[j++] = buffer[i];
+                }
+                if (sum != 0)
+                {
+                    Log.Info($"{mppt} Collected from {Poffset} length {end} bytes, sum = {sum}");
+                    //Log.Info($"checksum used\n{BitConverter.ToString(checkbytes, 0, end)}");
+                }
+                string result = Encoding.UTF8.GetString(buffer, Poffset, end);
                 //Log.Info($"reads:\n{result}");
                 return result;
             }
@@ -307,6 +311,8 @@ internal class SerialService
         catch (Exception ex)
         {
             Log.Error($"Exception while reading serial {mppt}, offset {offset}: {ex.Message}");
+            Log.Error(ex);
+            Log.Info($"data\n{BitConverter.ToString(buffer, 0, offset)}");
             return null;
         }
         finally
@@ -320,7 +326,6 @@ internal class SerialService
         string[] parts = data.Split("\n\n");
         foreach (var item in parts)
         {
-            //if (item.Length < 2) continue;
             string[] pair = item.Split('\t');
             if (pair.Length != 2) continue;
             switch (pair[0])
@@ -365,7 +370,7 @@ internal class SerialService
                 case "SOC":
                     if (int.TryParse(pair[1], out result))
                     {
-                        shunt.SOC = result / 10;
+                        shunt.SOC = result / 10.0;
                         if (result > 1000 || result < 0)
                         {
                             Log.Error($"Read Shunt, StateOfCharge unexpected, dev {shunt.Name}: {pair[1]}");
@@ -376,7 +381,7 @@ internal class SerialService
                 case "DM":
                     if (int.TryParse(pair[1], out result))
                     {
-                        shunt.DM = result/10;
+                        shunt.DM = result / 10.0;
                         if (result > 10 || result < -10)
                         {
                             Log.Error($"Read Shunt, Midpoint deviation is high, dev {shunt.Name}: {pair[1]}");
@@ -387,8 +392,7 @@ internal class SerialService
                 case "CE":
                     if (int.TryParse(pair[1], out result))
                     {
-                        Log.Info($"Shunt CE read is: {pair[1]}");
-                        shunt.Consumed_Ah = result/1000;
+                        shunt.Consumed_Ah = result / 1000.0;
                         break;
                     }
                     return PrintUnexpected(shunt.Name, pair[0], pair[1]);
@@ -446,7 +450,6 @@ internal class SerialService
         string[] parts = data.Split("\n\n");
         foreach (var item in parts)
         {
-            //if (item.Length < 2) continue;
             string[] pair = item.Split('\t');
             if (pair.Length != 2) continue;
             switch (pair[0])

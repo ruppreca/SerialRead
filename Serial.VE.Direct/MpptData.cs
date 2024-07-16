@@ -29,7 +29,7 @@ namespace SerialRead.Serial.VE.Direct
         public double DM { get; set; } // % Midpoint deviation
         public int Power_W { get; set; }
         public int TimeToGo_min { get; set; }
-        public double Consumed_Ah { get; set; }//Consumed Amp Hours
+        public double Consumed_Ah { get; set; } // Consumed Amp Hours
         public bool HasError { get; set; }
         public string Err { get; set; }
     }
