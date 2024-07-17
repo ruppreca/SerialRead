@@ -98,7 +98,7 @@ internal class SerialService
                         }
                         else
                         {
-                            Log.Error($"Task mppt_1 timeout: {task1.Status}, result is {result[0]}");
+                            Log.Error($"Task mppt_1 timeout or fail: {task1.Status}, result is {result[0]}");
                             writeToDb = false;
                         }
                         if (task2.IsCompletedSuccessfully && result[1] != null)
@@ -112,7 +112,7 @@ internal class SerialService
                         }
                         else
                         {
-                            Log.Error($"Task mppt_2 timeout: {task2.Status}, result is {result[1]}");
+                            Log.Error($"Task mppt_2 timeout or fail: {task2.Status}, result is {result[1]}");
                             writeToDb = false;
                         }
                         if (task3.IsCompletedSuccessfully && result[2] != null)
@@ -126,7 +126,7 @@ internal class SerialService
                         }
                         else
                         {
-                            Log.Error($"Task shunt timeout: {task3.Status}, result is {result[2]}");
+                            Log.Error($"Task shunt timeout or fail: {task3.Status}, result is {result[2]}");
                             writeToDb = false;
                         }
                     }
@@ -225,11 +225,9 @@ internal class SerialService
                         Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, 0, offset)}");
                         return null;
                     }
+
                     int lastOffset = offset <= 2 ? 2 : offset;
-                    while (offset < lastOffset + 25) // read min 25 bytes //TODO why is the 50 critical ????
-                    {
-                        offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                    }
+                    offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
                     // offset zeigt auf das nächste leer byte im Buffer
                     for (int i = lastOffset; i < offset; i++) // search bytes for PID in reverse order
                     {
@@ -258,11 +256,9 @@ internal class SerialService
                         Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset - 2)}");
                         return null;
                     }
+
                     int startindex = offset;
-                    while (offset < startindex + 8)
-                    {
-                        offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                    }
+                    offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
                     for (int i = startindex; i < offset; i++) // search bytes for Che in reverse order
                     {
                         if (buffer[i] == 'e')
@@ -307,6 +303,7 @@ internal class SerialService
                 {
                     Log.Info($"{mppt} Collected from {Poffset} length {end} bytes, sum = {sum}");
                     //Log.Info($"checksum used\n{BitConverter.ToString(checkbytes, 0, end)}");
+                    return null;
                 }
                 string result = Encoding.UTF8.GetString(buffer, Poffset, end);
                 //Log.Info($"reads:\n{result}");
