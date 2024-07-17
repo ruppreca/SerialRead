@@ -214,7 +214,7 @@ internal class SerialService
         {
             using (var stream = new FileStream(mppt, FileMode.Open, FileAccess.Read))
             {
-          
+
                 int Poffset = -1;  // if one byte is retured from read, then offset is 0, points to buffer[0]
                 bool foundPI = false;
                 while (!foundPI) // find the bytes accoding to "PI" 
@@ -238,7 +238,7 @@ internal class SerialService
                             if (buffer[i - 1] == 'I' && buffer[i - 2] == 'P')
                             {
                                 foundPI = true;
-                                Poffset = i-2;
+                                Poffset = i - 2;
                                 //Log.Info($"{mppt} foundPI {foundPI} at {Poffset}");
                                 break;
                             }
@@ -259,28 +259,33 @@ internal class SerialService
                         return null;
                     }
                     int startindex = offset;
-                    while (offset < startindex + 8) // to get Checksun add min 8 bytes
+                    while (offset < startindex + 8)
                     {
                         offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
                     }
                     for (int i = startindex; i < offset; i++) // search bytes for Che in reverse order
                     {
-                        if (buffer[i] == 'e')  // Poffset + startindex - 2 is always >= 0
+                        if (buffer[i] == 'e')
                         {
                             //Log.Info($"{mppt} found e at {i}");
                             if (buffer[i - 1] == 'h' && buffer[i - 2] == 'C')
                             {
                                 foundCh = true;
-                                Choffset = i-2;
+                                Choffset = i - 2;
                                 //Log.Info($"{mppt} foundCh {foundCh} at {Choffset}");
                                 break;
                             }
                         }
+                        if (buffer[i] == ':')  // then some binary data comes in between -> We quit with "noread"
+                        {
+                            return null;
+                        }
                     }
                 }
+                if (!foundCh) return null;
 
                 byte sum = 23; // add a 0d 0a before the PID found  (https://www.victronenergy.com/live/vedirect_protocol:faq#q8how_do_i_calculate_the_text_checksum)
-                int end = Choffset - Poffset + 10; 
+                int end = Choffset - Poffset + 10;
                 //byte[] checkbytes = new byte[500];
 
                 //Log.Info($"data\n{BitConverter.ToString(buffer, Poffset, end)}");  // end must be lenght
@@ -288,13 +293,13 @@ internal class SerialService
                 //int j = 0;
                 for (int i = Poffset; i < Poffset + end; i++)
                 {
-                    if (i < Poffset + end -1 && buffer[i] == '\n' && buffer[i + 1] == '\n')
+                    if (i < Poffset + end - 1 && buffer[i] == '\n' && buffer[i + 1] == '\n')
                     {
                         sum += (byte)'\r';
                     }
                     else
-                    { 
-                        sum += buffer[i]; 
+                    {
+                        sum += buffer[i];
                     }
                     //checkbytes[j++] = buffer[i];
                 }
