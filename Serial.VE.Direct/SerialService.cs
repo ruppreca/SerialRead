@@ -158,6 +158,7 @@ internal class SerialService
                                         .Field("OstWestPV_W", _ostWest.PowerPV_W)
                                         .Field("SüdPV_W", _süd.PowerPV_W)
                                         .Field("IPV_A", _ostWest.Ibatt_A + _süd.Ibatt_A)
+                                        .Field("Status", _ostWest.State)
                                         .Timestamp(DateTime.UtcNow, WritePrecision.S);
 
                                     writeApi.WritePoint(point, Bucket, Org);
@@ -221,7 +222,7 @@ internal class SerialService
                 {
                     if (s_cts.IsCancellationRequested)
                     {
-                        Log.Error($"Cancel happed, {mppt} while loop for foundPI timeout");
+                        Log.Error($"Cancel happed, {mppt} while loop for foundPI, offset {offset}");
                         Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, 0, offset)}");
                         return null;
                     }
@@ -245,14 +246,14 @@ internal class SerialService
                 }
 
                 s_cts = new CancellationTokenSource();
-                s_cts.CancelAfter(800);  // rest of string must be fast << 1sec
+                s_cts.CancelAfter(2000);  // rest of string must be fast << 1sec
                 int Choffset = 0;
                 bool foundCh = false;
                 while (!foundCh) // find the byte according to "Ch" 
                 {
                     if (s_cts.IsCancellationRequested)
                     {
-                        Log.Error($"Cancel happed, {mppt} while loop for foundCh");
+                        Log.Error($"Cancel happed, {mppt} while loop for foundCh, offset {offset}");
                         Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset - 2)}");
                         return null;
                     }
@@ -299,13 +300,14 @@ internal class SerialService
                     }
                     //checkbytes[j++] = buffer[i];
                 }
+                string result = Encoding.UTF8.GetString(buffer, Poffset, end);
                 if (sum != 0)
                 {
-                    Log.Info($"{mppt} Collected from {Poffset} length {end} bytes, sum = {sum}");
+                    Log.Info($"Checksum {mppt}, collected from {Poffset} length {end} bytes, sum = {sum}");
                     //Log.Info($"checksum used\n{BitConverter.ToString(checkbytes, 0, end)}");
+                    Log.Info($"Has read:\n{result}");
                     return null;
                 }
-                string result = Encoding.UTF8.GetString(buffer, Poffset, end);
                 //Log.Info($"reads:\n{result}");
                 return result;
             }
