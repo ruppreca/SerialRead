@@ -131,5 +131,17 @@ internal class Mqtt
         Log.Debug($"Publish Heater Power {r.IsSuccess}");
 
     }
+
+    public async Task publishBatterie(string value)
+    {
+        var applicationMessage = new MqttApplicationMessageBuilder()
+            .WithTopic("Batterie")
+            .WithPayload(value)
+            .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+        var r = await _client?.PublishAsync(applicationMessage, CancellationToken.None);
+        Log.Debug($"Publish Batterie {r.IsSuccess}");
+
+    }
 }
 

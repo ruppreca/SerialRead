@@ -17,7 +17,8 @@ namespace SerialRead.Serial.VE.Direct
         public bool HasError { get; set; }
         public string Err { get; set; }
         public bool LoadOn { get; set; }
-
+        public double YieldToday { get; set; }
+        public int MaxPowerToday { get; set; }
     }
 
     internal class ShuntData

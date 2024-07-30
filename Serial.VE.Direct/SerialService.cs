@@ -29,10 +29,11 @@ internal class SerialService
     private static readonly string Org = "ArHome";
     private static readonly string Bucket = "Batterie";
 
-    MpptData _ostWest;
-    MpptData _süd;
-    ShuntData _shunt;
-    InfluxDBClient _client;
+    private MpptData _ostWest;
+    private MpptData _süd;
+    private ShuntData _shunt;
+    private Mqtt _mqtt;
+    private InfluxDBClient _client;
 
     public SerialService(TimeSpan timerInterval)
     {
@@ -52,6 +53,9 @@ internal class SerialService
             Log.Info($"Bash: {output}");
             output = "stty -F /dev/ttyUSB1 19200 cs8 -cstopb -parenb".Bash();
             Log.Info($"Bash: {output}");
+
+            _mqtt = new();
+            await _mqtt.Connect_Client_Timeout("Batterie");
 
             _client = new InfluxDBClient("http://192.168.178.26:8086", Token);
             _timerTask = DoWorkAsync();
@@ -129,6 +133,7 @@ internal class SerialService
                             Log.Error($"Task shunt timeout or fail: {task3.Status}, result is {result[2]}");
                             writeToDb = false;
                         }
+                        task1.Dispose(); task2.Dispose(); task3.Dispose();
                     }
                     catch (AggregateException ex)
                     {
@@ -136,7 +141,7 @@ internal class SerialService
                         Log.Error(ex);
                     }
 
-                    if (_cts.IsCancellationRequested) return;
+                    if (_cts.IsCancellationRequested) continue;
                     if (writeToDb)
                     {
                         if(_shunt.Vbatt_V < 20)
@@ -171,6 +176,7 @@ internal class SerialService
                             //Log.Info("SerialService done Write DB");
                         }
                     }
+                    await _mqtt.publishBatterie($"{_ostWest.State};{_shunt.Vbatt_V};{_shunt.Ibatt_A};{_shunt.SOC};{_ostWest.YieldToday};{_ostWest.MaxPowerToday};{_süd.YieldToday};{_süd.MaxPowerToday};");
                 }
                 catch (Exception e)
                 {
@@ -208,7 +214,7 @@ internal class SerialService
     private static async Task<string> CollectDataLines(string mppt)
     {
         var s_cts = new CancellationTokenSource();
-        s_cts.CancelAfter(2000);
+        s_cts.CancelAfter(1200);
         byte[] buffer = new byte[1000];
         int offset = 0;
         try
@@ -238,15 +244,16 @@ internal class SerialService
                             {
                                 foundPI = true;
                                 Poffset = i - 2;
-                                //Log.Info($"{mppt} foundPI {foundPI} at {Poffset}");
+                                Log.Info($"{mppt} foundPI {foundPI} at {Poffset}");
                                 break;
                             }
                         }
                     }
                 }
 
+                s_cts.Dispose();
                 s_cts = new CancellationTokenSource();
-                s_cts.CancelAfter(2000);  // rest of string must be fast << 1sec
+                s_cts.CancelAfter(1000);  // rest of string must be fast << 1sec
                 int Choffset = 0;
                 bool foundCh = false;
                 while (!foundCh) // find the byte according to "Ch" 
@@ -269,7 +276,7 @@ internal class SerialService
                             {
                                 foundCh = true;
                                 Choffset = i - 2;
-                                //Log.Info($"{mppt} foundCh {foundCh} at {Choffset}");
+                                Log.Info($"{mppt} foundCh {foundCh} at {Choffset}");
                                 break;
                             }
                         }
@@ -305,7 +312,7 @@ internal class SerialService
                 {
                     Log.Info($"Checksum {mppt}, collected from {Poffset} length {end} bytes, sum = {sum}");
                     //Log.Info($"checksum used\n{BitConverter.ToString(checkbytes, 0, end)}");
-                    Log.Info($"Has read:\n{result}");
+                    //Log.Info($"Has read:\n{result}");
                     return null;
                 }
                 //Log.Info($"reads:\n{result}");
@@ -566,6 +573,28 @@ internal class SerialService
                     else
                     {
                         Log.Error($"SRead Mppt, Unexpected string for LOAD at device {mppt.Name}: {pair[1]}");
+                        return false;
+                    }
+                    break;
+                case "H20":  //H20 0.01 kWh Yield today
+                    if (int.TryParse(pair[1], out result))
+                    {
+                        mppt.YieldToday = result / 100.0;
+                    }
+                    else
+                    {
+                        Log.Error($"Read Mppt, H20 unexpected dev {mppt.Name}: {pair[1]}");
+                        return false;
+                    }
+                    break;
+                case "H21":  //H21 W Maximum power today
+                    if (int.TryParse(pair[1], out result))
+                    {
+                        mppt.MaxPowerToday = result;
+                    }
+                    else
+                    {
+                        Log.Error($"Read Mppt, H21 unexpected dev {mppt.Name}: {pair[1]}");
                         return false;
                     }
                     break;
