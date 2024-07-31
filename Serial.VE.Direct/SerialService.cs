@@ -23,7 +23,7 @@ internal class SerialService
     private const string shunt = "/dev/ttyUSB1";
     private const string Serial_1 = "HQ222362TRN";  // OstWest
     private const string Serial_2 = "HQ22236MWWE";  // Süd
-    private const string Serial_shunt = "";  // Smart Shunt
+    // Smart Shunt hat keine SerialNr im output
 
     private static readonly string Token = "LbpWnklKJjhgRecvsJiMzImm016Ycze98_55R2aUcjiuN-L4waCeHKr2fUAGXo9dTIgqd0h1kGaaUrd9vBsUdw==";
     private static readonly string Org = "ArHome";
@@ -140,6 +140,11 @@ internal class SerialService
                         Log.Error($"\nAggregateException from serial read {ex.Message}\n");
                         Log.Error(ex);
                     }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"\nException from serial read {ex.Message}\n");
+                        Log.Error(ex);
+                    }
 
                     if (_cts.IsCancellationRequested) continue;
                     if (writeToDb)
@@ -226,7 +231,7 @@ internal class SerialService
                 bool foundPI = false;
                 while (!foundPI) // find the bytes accoding to "PI" 
                 {
-                    if (s_cts.IsCancellationRequested)
+                    if (s_cts.IsCancellationRequested) // das passier selten bis nie
                     {
                         Log.Error($"Cancel happed, {mppt} while loop for foundPI, offset {offset}");
                         Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, 0, offset)}");
@@ -253,15 +258,15 @@ internal class SerialService
 
                 s_cts.Dispose();
                 s_cts = new CancellationTokenSource();
-                s_cts.CancelAfter(1000);  // rest of string must be fast << 1sec
+                s_cts.CancelAfter(800);  // rest of string must be fast << 1sec
                 int Choffset = 0;
                 bool foundCh = false;
                 while (!foundCh) // find the byte according to "Ch" 
                 {
                     if (s_cts.IsCancellationRequested)
                     {
-                        Log.Error($"Cancel happed, {mppt} while loop for foundCh, offset {offset}");
-                        Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset - 2)}");
+                        Log.Error($"Cancel happed, {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}");
+                        //Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset - 2)}");
                         return null;
                     }
 
@@ -276,7 +281,7 @@ internal class SerialService
                             {
                                 foundCh = true;
                                 Choffset = i - 2;
-                                Log.Info($"{mppt} foundCh {foundCh} at {Choffset}");
+                                Log.Info($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}");
                                 break;
                             }
                         }
