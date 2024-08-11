@@ -87,53 +87,68 @@ internal class SerialService
                     bool writeToDb = true;
                     try
                     {
-                        var task1 = CollectDataLines(mppt_1);
-                        var task2 = CollectDataLines(mppt_2);
-                        var task3 = CollectDataLines(shunt);
-                        string[] result = await Task.WhenAll(task1, task2, task3);
-                        if (task1.IsCompletedSuccessfully && result[0] != null)
+                        //var task1 = CollectDataLines(mppt_1);
+                        //var task2 = CollectDataLines(mppt_2);
+                        //var task3 = CollectDataLines(shunt);
+                        //string[] result = await Task.WhenAll(task1, task2, task3);
+
+                        var result_mppt_1 = await CollectDataLines(mppt_1);
+                        var result_mppt_2 = await CollectDataLines(mppt_2);
+                        var result_s = await CollectDataLines(shunt);
+
+                        if (result_mppt_1 != null)
                         {
-                            if (!CheckMpttReadout(result[0], _ostWest))
+                            if (!CheckMpttReadout(result_mppt_1, _ostWest))
                             {
-                                Log.Error($"SerialService failed interpert data dev {_ostWest.Name}: {result[0]}");
+                                Log.Error($"SerialService failed interpert data dev {_ostWest.Name}: {result_mppt_1}");
                                 writeToDb = false;
                             }
                             Log.Info($"Mptt {_ostWest.Name}: Vbatt {_ostWest.Vbatt_V:0.00}, Ibatt {_ostWest.Ibatt_A:0.00}A, Power {_ostWest.PowerPV_W}W, State: {_ostWest.State}, Load {_ostWest.LoadOn}");
                         }
                         else
                         {
-                            Log.Error($"Task mppt_1 timeout or fail: {task1.Status}, result is {result[0]}");
+                            Log.Error($"Task mppt_1 timeout or fail: result is {result_mppt_1}");
                             writeToDb = false;
                         }
-                        if (task2.IsCompletedSuccessfully && result[1] != null)
+                        if (result_mppt_2 != null)
                         {
-                            if (!CheckMpttReadout(result[1], _süd))
+                            if (!CheckMpttReadout(result_mppt_2, _süd))
                             {
-                                Log.Error($"SerialService failed interpert data dev {_süd.Name}: {result[1]}");
+                                Log.Error($"SerialService failed interpert data dev {_süd.Name}: {result_mppt_2}");
                                 writeToDb = false;
                             }
                             Log.Info($"Mptt {_süd.Name}: Vbatt {_süd.Vbatt_V:0.00}V, Ibatt {_süd.Ibatt_A:0.00}A, Power {_süd.PowerPV_W}W, State: {_süd.State}, Load {_süd.LoadOn}");
                         }
                         else
                         {
-                            Log.Error($"Task mppt_2 timeout or fail: {task2.Status}, result is {result[1]}");
+                            Log.Error($"Task mppt_2 timeout or fail: result is {result_mppt_2}");
                             writeToDb = false;
                         }
-                        if (task3.IsCompletedSuccessfully && result[2] != null)
+                        //if (task3.IsCompletedSuccessfully && result[2] != null)
+                        //    {
+                        //    if (!CheckShuntReadout(result[2], _shunt))
+                        //    {
+                        //        Log.Error($"SerialService failed interpert data dev {_shunt.Name}: {result[2]}");
+                        //        writeToDb = false;
+                        //    }
+                        //    Log.Info($"Shunt: SOC {_shunt.SOC:0.0}%, Vbatt {_shunt.Vbatt_V:0.00}V, Ibatt {_shunt.Ibatt_A:0.00}A, Power {_shunt.Power_W}W, TimeToGo {_shunt.TimeToGo_min}min, Consumed_Ah {_shunt.Consumed_Ah:0.00}Ah, DM {_shunt.DM:0.0}%");
+                        //}
+                        if (result_s != null)
                         {
-                            if (!CheckShuntReadout(result[2], _shunt))
+                            if (!CheckShuntReadout(result_s, _shunt))
                             {
-                                Log.Error($"SerialService failed interpert data dev {_shunt.Name}: {result[2]}");
+                                Log.Error($"SerialService failed interpert data dev {_shunt.Name}: {result_s}");
                                 writeToDb = false;
                             }
                             Log.Info($"Shunt: SOC {_shunt.SOC:0.0}%, Vbatt {_shunt.Vbatt_V:0.00}V, Ibatt {_shunt.Ibatt_A:0.00}A, Power {_shunt.Power_W}W, TimeToGo {_shunt.TimeToGo_min}min, Consumed_Ah {_shunt.Consumed_Ah:0.00}Ah, DM {_shunt.DM:0.0}%");
                         }
                         else
                         {
-                            Log.Error($"Task shunt timeout or fail: {task3.Status}, result is {result[2]}");
+                            // Log.Error($"Task shunt timeout or fail: {task3.Status}, result is {result[2]}");
+                            Log.Error($"Task shunt timeout or fail: result is {result_s}");
                             writeToDb = false;
                         }
-                        task1.Dispose(); task2.Dispose(); task3.Dispose();
+                        //task1.Dispose(); task2.Dispose(); task3.Dispose();
                     }
                     catch (AggregateException ex)
                     {
