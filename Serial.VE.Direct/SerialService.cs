@@ -195,8 +195,8 @@ internal class SerialService
                             }
                             //Log.Info("SerialService done Write DB");
                         }
+                        await _mqtt.publishBatterie($"{_ostWest.State};{_shunt.Vbatt_V};{_shunt.Ibatt_A};{_shunt.SOC};{_ostWest.YieldToday};{_ostWest.MaxPowerToday};{_süd.YieldToday};{_süd.MaxPowerToday};");
                     }
-                    await _mqtt.publishBatterie($"{_ostWest.State};{_shunt.Vbatt_V};{_shunt.Ibatt_A};{_shunt.SOC};{_ostWest.YieldToday};{_ostWest.MaxPowerToday};{_süd.YieldToday};{_süd.MaxPowerToday};");
                 }
                 catch (Exception e)
                 {
@@ -234,77 +234,137 @@ internal class SerialService
     private static async Task<string> CollectDataLines(string mppt)
     {
         var s_cts = new CancellationTokenSource();
-        s_cts.CancelAfter(1200);
+        //s_cts.CancelAfter(1200);
         byte[] buffer = new byte[1000];
         int offset = 0;
         try
         {
             using (var stream = new FileStream(mppt, FileMode.Open, FileAccess.Read))
             {
-
                 int Poffset = -1;  // if one byte is retured from read, then offset is 0, points to buffer[0]
                 bool foundPI = false;
-                while (!foundPI) // find the bytes accoding to "PI" 
+                try
                 {
-                    if (s_cts.IsCancellationRequested) // das passier selten bis nie
+                    s_cts.CancelAfter(1200);
+                    while (!foundPI) // find the bytes accoding to "PI" 
                     {
-                        Log.Error($"Cancel happed, {mppt} while loop for foundPI, offset {offset}");
-                        Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, 0, offset)}");
-                        return null;
-                    }
-
-                    int lastOffset = offset <= 2 ? 2 : offset;
-                    offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                    // offset zeigt auf das nächste leer byte im Buffer
-                    for (int i = lastOffset; i < offset; i++) // search bytes for PID in reverse order
-                    {
-                        if (buffer[i] == 'D' && lastOffset > 1) // make shure buffer[i] to [i+2] is vaild
+                        if (s_cts.IsCancellationRequested) // das passier selten bis nie
                         {
-                            if (buffer[i - 1] == 'I' && buffer[i - 2] == 'P')
+                            Log.Error($"Cancel happed, {mppt} while loop for foundPI, offset {offset}");
+                            Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, 0, offset)}");
+                            return null;
+                        }
+
+                        int lastOffset = offset <= 2 ? 2 : offset;
+
+                        //offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
+                        Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
+                        Task timeTask = Task.Delay(1000);
+                        int outcome = Task.WaitAny(readTask, timeTask);
+                        if(outcome == 1)
+                        {
+                            Log.Error($"ReadAsync timeout {mppt} while loop for foundPI, offset {offset}");
+                            return null;
+                        }
+                        else
+                        {
+                            offset += readTask.Result;
+                        }
+
+                        // offset zeigt auf das nächste leer byte im Buffer
+                        for (int i = lastOffset; i < offset; i++) // search bytes for PID in reverse order
+                        {
+                            if (buffer[i] == 'D' && lastOffset > 1) // make shure buffer[i] to [i+2] is vaild
                             {
-                                foundPI = true;
-                                Poffset = i - 2;
-                                Log.Info($"{mppt} foundPI {foundPI} at {Poffset}");
-                                break;
+                                if (buffer[i - 1] == 'I' && buffer[i - 2] == 'P')
+                                {
+                                    foundPI = true;
+                                    Poffset = i - 2;
+                                    Log.Info($"{mppt} foundPI {foundPI} at {Poffset}");
+                                    break;
+                                }
                             }
                         }
                     }
                 }
+                catch (OperationCanceledException)
+                {
+                    Log.Info($"While foundPI canceled after 800ms");
+                }
+                finally
+                {
+                    s_cts.Dispose();
+                }
 
-                s_cts.Dispose();
                 s_cts = new CancellationTokenSource();
-                s_cts.CancelAfter(800);  // rest of string must be fast << 1sec
+                //s_cts.CancelAfter(800);  // rest of string must be fast << 1sec
                 int Choffset = 0;
                 bool foundCh = false;
-                while (!foundCh) // find the byte according to "Ch" 
-                {
-                    if (s_cts.IsCancellationRequested)
-                    {
-                        Log.Error($"Cancel happed, {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}");
-                        //Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset - 2)}");
-                        return null;
-                    }
 
-                    int startindex = offset;
-                    offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                    for (int i = startindex; i < offset; i++) // search bytes for Che in reverse order
+                try
+                {
+                    s_cts.CancelAfter(800);
+                    while (!foundCh) // find the byte according to "Ch" 
                     {
-                        if (buffer[i] == 'e')
+                        if (s_cts.IsCancellationRequested)
                         {
-                            //Log.Info($"{mppt} found e at {i}");
-                            if (buffer[i - 1] == 'h' && buffer[i - 2] == 'C')
-                            {
-                                foundCh = true;
-                                Choffset = i - 2;
-                                Log.Info($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}");
-                                break;
-                            }
-                        }
-                        if (buffer[i] == ':')  // then some binary data comes in between -> We quit with "noread"
-                        {
+                            Log.Error($"Cancel happed, {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}");
+                            //Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset - 2)}");
                             return null;
                         }
+
+                        int startindex = offset;
+                        offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
+/*
+ Dieser Versuch mit extra timer hat im log vom 240814 NIE zugeschlagen, aber 56 Restarts des docker bis ca. 16Uhr
+                        Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
+                        Task timeTask = Task.Delay(1200);
+                        int outcome = Task.WaitAny(readTask, timeTask);
+                        if (outcome == 1)
+                        {
+                            Log.Error($"ReadAsync timeout {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}");
+                            return null;
+                        }
+                        else
+                        {
+                            offset += readTask.Result;
+                        }
+*/
+                        for (int i = startindex; i < offset; i++) // search bytes for Che in reverse order
+                        {
+                            if (buffer[i] == 'e')
+                            {
+                                //Log.Info($"{mppt} found e at {i}");
+                                if (buffer[i - 1] == 'h' && buffer[i - 2] == 'C')
+                                {
+                                    foundCh = true;
+                                    Choffset = i - 2;
+                                    Log.Info($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}");
+                                    break;
+                                }
+                            }
+                            if (buffer[i] == ':')  // then some binary data comes in between -> We quit with "noread"
+                            {
+                                return null;
+                            }
+                        }
+
+                        // stop nach zu langem Suchen nach Che (nur USB 1)
+                        if(!foundCh && offset > Poffset + 150 && mppt == "/dev/ttyUSB1")
+                        {
+                            Log.Info($"{mppt} stop search for Che, offset {offset}, Poffset {Poffset}");
+                            break;
+                        }
+
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    Log.Info($"While foundCh canceled after 800ms");
+                }
+                finally
+                {
+                    s_cts.Dispose();
                 }
                 if (!foundCh) return null;
 
@@ -345,10 +405,6 @@ internal class SerialService
             Log.Error(ex);
             Log.Info($"data\n{BitConverter.ToString(buffer, 0, offset)}");
             return null;
-        }
-        finally
-        {
-            s_cts.Dispose();
         }
     }
 
