@@ -487,9 +487,9 @@ internal class SerialService
                     if (int.TryParse(pair[1], out result))
                     {
                         shunt.Power_W = result;
-                        if (result > 3000 || result < -1000)
+                        if (result > 3000 || result < -2500)
                         {
-                            Log.Error($"Read Shunt, Power unexpected dev, dev {shunt.Name}: {pair[1]}");
+                            Log.Error($"Read Shunt, Power unexpected, dev {shunt.Name}: {pair[1]}");
                         }
                         break;
                     }
