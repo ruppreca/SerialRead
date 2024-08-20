@@ -258,7 +258,7 @@ internal class SerialService
                         int lastOffset = offset <= 2 ? 2 : offset;
 
                         //offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                        Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
+                        Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset -2, s_cts.Token);
                         Task timeTask = Task.Delay(1000);
                         int outcome = Task.WaitAny(readTask, timeTask);
                         if(outcome == 1)
@@ -314,7 +314,7 @@ internal class SerialService
                         }
 
                         int startindex = offset;
-                        offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
+                        offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset -2, s_cts.Token);
 /*
  Dieser Versuch mit extra timer hat im log vom 240814 NIE zugeschlagen, aber 56 Restarts des docker bis ca. 16Uhr
                         Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
