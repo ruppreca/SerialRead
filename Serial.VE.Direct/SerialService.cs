@@ -75,7 +75,6 @@ internal class SerialService
 
     private async Task DoWorkAsync()
     {
-        //TODO: nicht Alles bei nacht auslesen ??
         //Log.Info("SerialService run DoWorkAsync");
         try
         {
