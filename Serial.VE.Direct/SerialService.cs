@@ -62,7 +62,7 @@ internal class SerialService
         }
         catch (Exception ex)
         {
-            Log.Error($"SerialService failed to init devices: {ex.Message}");
+            Log.Error($"Exception SerialService failed to init devices: {ex.Message}");
             throw;
         }
         Log.Info("SerialService started success");
@@ -190,7 +190,7 @@ internal class SerialService
                             }
                             catch (Exception ex)
                             {
-                                Log.Error($"SerialService Influx fail: {ex.Message}");
+                                Log.Error($"Exception SerialService Influx fail: {ex.Message}");
                             }
                             //Log.Info("SerialService done Write DB");
                         }
@@ -199,7 +199,7 @@ internal class SerialService
                 }
                 catch (Exception e)
                 {
-                    Log.Error($"Exeption in SerialService while loop: {e.Message}");
+                    Log.Error($"Exception in SerialService while loop: {e.Message}");
                     Log.Error(e);
                 }
             }
@@ -233,7 +233,6 @@ internal class SerialService
     private static async Task<string> CollectDataLines(string mppt)
     {
         var s_cts = new CancellationTokenSource();
-        //s_cts.CancelAfter(1200);
         byte[] buffer = new byte[1000];
         int offset = 0;
         try
@@ -253,22 +252,8 @@ internal class SerialService
                             Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, 0, offset)}");
                             return null;
                         }
-
                         int lastOffset = offset <= 2 ? 2 : offset;
-
-                        //offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                        Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                        Task timeTask = Task.Delay(1000);
-                        int outcome = Task.WaitAny(readTask, timeTask);
-                        if(outcome == 1)
-                        {
-                            Log.Error($"ReadAsync timeout {mppt} while loop for foundPI, offset {offset}");
-                            return null;
-                        }
-                        else
-                        {
-                            offset += readTask.Result;
-                        }
+                        offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
 
                         // offset zeigt auf das nächste leer byte im Buffer
                         for (int i = lastOffset; i < offset; i++) // search bytes for PID in reverse order
@@ -286,9 +271,9 @@ internal class SerialService
                         }
                     }
                 }
-                catch (OperationCanceledException)
+                catch (Exception ex)
                 {
-                    Log.Info($"While foundPI canceled after 800ms");
+                    Log.Info($"Exception in While foundPI canceled after 1200ms. Message: {ex.Message}");
                 }
                 finally
                 {
@@ -296,13 +281,12 @@ internal class SerialService
                 }
 
                 s_cts = new CancellationTokenSource();
-                //s_cts.CancelAfter(800);  // rest of string must be fast << 1sec
                 int Choffset = 0;
                 bool foundCh = false;
 
                 try
                 {
-                    s_cts.CancelAfter(800);
+                    s_cts.CancelAfter(400);
                     while (!foundCh) // find the byte according to "Ch" 
                     {
                         if (s_cts.IsCancellationRequested)
@@ -314,21 +298,6 @@ internal class SerialService
 
                         int startindex = offset;
                         offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-/*
- Dieser Versuch mit extra timer hat im log vom 240814 NIE zugeschlagen, aber 56 Restarts des docker bis ca. 16Uhr
-                        Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                        Task timeTask = Task.Delay(1200);
-                        int outcome = Task.WaitAny(readTask, timeTask);
-                        if (outcome == 1)
-                        {
-                            Log.Error($"ReadAsync timeout {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}");
-                            return null;
-                        }
-                        else
-                        {
-                            offset += readTask.Result;
-                        }
-*/
                         for (int i = startindex; i < offset; i++) // search bytes for Che in reverse order
                         {
                             if (buffer[i] == 'e')
@@ -357,9 +326,9 @@ internal class SerialService
 
                     }
                 }
-                catch (OperationCanceledException)
+                catch (Exception ex)
                 {
-                    Log.Info($"While foundCh canceled after 800ms");
+                    Log.Info($"Exception in While foundCh canceled after 400ms. Message: {ex.Message}");
                 }
                 finally
                 {
