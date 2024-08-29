@@ -80,7 +80,7 @@ internal class SerialService
         {
             while (!_cts.Token.IsCancellationRequested && await _timer.WaitForNextTickAsync(_cts.Token))
             {
-                Log.Info("DoWorkAsync beginns");
+                //Log.Info("DoWorkAsync beginns");
                 try
                 {
                     bool writeToDb = true;
@@ -102,7 +102,7 @@ internal class SerialService
                                 Log.Error($"SerialService failed interpert data dev {_ostWest.Name}: {result_mppt_1}");
                                 writeToDb = false;
                             }
-                            Log.Info($"Mptt {_ostWest.Name}: Vbatt {_ostWest.Vbatt_V:0.00}, Ibatt {_ostWest.Ibatt_A:0.00}A, Power {_ostWest.PowerPV_W}W, State: {_ostWest.State}, Load {_ostWest.LoadOn}");
+                            Log.Debug($"Mptt {_ostWest.Name}: Vbatt {_ostWest.Vbatt_V:0.00}, Ibatt {_ostWest.Ibatt_A:0.00}A, Power {_ostWest.PowerPV_W}W, State: {_ostWest.State}, Load {_ostWest.LoadOn}");
                         }
                         else
                         {
@@ -116,7 +116,7 @@ internal class SerialService
                                 Log.Error($"SerialService failed interpert data dev {_süd.Name}: {result_mppt_2}");
                                 writeToDb = false;
                             }
-                            Log.Info($"Mptt {_süd.Name}: Vbatt {_süd.Vbatt_V:0.00}V, Ibatt {_süd.Ibatt_A:0.00}A, Power {_süd.PowerPV_W}W, State: {_süd.State}, Load {_süd.LoadOn}");
+                            Log.Debug($"Mptt {_süd.Name}: Vbatt {_süd.Vbatt_V:0.00}V, Ibatt {_süd.Ibatt_A:0.00}A, Power {_süd.PowerPV_W}W, State: {_süd.State}, Load {_süd.LoadOn}");
                         }
                         else
                         {
@@ -139,7 +139,7 @@ internal class SerialService
                                 Log.Error($"SerialService failed interpert data dev {_shunt.Name}: {result_s}");
                                 writeToDb = false;
                             }
-                            Log.Info($"Shunt: SOC {_shunt.SOC:0.0}%, Vbatt {_shunt.Vbatt_V:0.00}V, Ibatt {_shunt.Ibatt_A:0.00}A, Power {_shunt.Power_W}W, TimeToGo {_shunt.TimeToGo_min}min, Consumed_Ah {_shunt.Consumed_Ah:0.00}Ah, DM {_shunt.DM:0.0}%");
+                            Log.Debug($"Shunt: SOC {_shunt.SOC:0.0}%, Vbatt {_shunt.Vbatt_V:0.00}V, Ibatt {_shunt.Ibatt_A:0.00}A, Power {_shunt.Power_W}W, TimeToGo {_shunt.TimeToGo_min}min, Consumed_Ah {_shunt.Consumed_Ah:0.00}Ah, DM {_shunt.DM:0.0}%");
                         }
                         else
                         {
@@ -256,19 +256,19 @@ internal class SerialService
 
                         int lastOffset = offset <= 2 ? 2 : offset;
 
-                        //offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                        Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                        Task timeTask = Task.Delay(1000);
-                        int outcome = Task.WaitAny(readTask, timeTask);
-                        if(outcome == 1)
-                        {
-                            Log.Error($"ReadAsync timeout {mppt} while loop for foundPI, offset {offset}");
-                            return null;
-                        }
-                        else
-                        {
-                            offset += readTask.Result;
-                        }
+                        offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
+                        //Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
+                        //Task timeTask = Task.Delay(1000);
+                        //int outcome = Task.WaitAny(readTask, timeTask);
+                        //if(outcome == 1)
+                        //{
+                        //    Log.Error($"ReadAsync timeout {mppt} while loop for foundPI, offset {offset}");
+                        //    return null;
+                        //}
+                        //else
+                        //{
+                        //    offset += readTask.Result;
+                        //}
 
                         // offset zeigt auf das nächste leer byte im Buffer
                         for (int i = lastOffset; i < offset; i++) // search bytes for PID in reverse order
@@ -279,16 +279,16 @@ internal class SerialService
                                 {
                                     foundPI = true;
                                     Poffset = i - 2;
-                                    Log.Info($"{mppt} foundPI {foundPI} at {Poffset}");
+                                    Log.Debug($"{mppt} foundPI {foundPI} at {Poffset}");
                                     break;
                                 }
                             }
                         }
                     }
                 }
-                catch (OperationCanceledException)
+                catch (Exception ex)
                 {
-                    Log.Info($"While foundPI canceled after 800ms");
+                    Log.Info($"Exception: While foundPI canceled after 800ms, Msg: {ex.Message}");
                 }
                 finally
                 {
@@ -308,7 +308,7 @@ internal class SerialService
                         if (s_cts.IsCancellationRequested)
                         {
                             Log.Error($"Cancel happed, {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}");
-                            //Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset - 2)}");
+                            Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset)}");
                             return null;
                         }
 
@@ -338,7 +338,7 @@ internal class SerialService
                                 {
                                     foundCh = true;
                                     Choffset = i - 2;
-                                    Log.Info($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}");
+                                    Log.Debug($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}");
                                     break;
                                 }
                             }
@@ -357,9 +357,9 @@ internal class SerialService
 
                     }
                 }
-                catch (OperationCanceledException)
+                catch (Exception ex)
                 {
-                    Log.Info($"While foundCh canceled after 800ms");
+                    Log.Info($"Exception: While foundCh canceled after 800ms, Msg: {ex.Message}");
                 }
                 finally
                 {
@@ -369,11 +369,11 @@ internal class SerialService
 
                 byte sum = 23; // add a 0d 0a before the PID found  (https://www.victronenergy.com/live/vedirect_protocol:faq#q8how_do_i_calculate_the_text_checksum)
                 int end = Choffset - Poffset + 10;
-                //byte[] checkbytes = new byte[500];
+                byte[] checkbytes = new byte[500];
 
                 //Log.Info($"data\n{BitConverter.ToString(buffer, Poffset, end)}");  // end must be lenght
 
-                //int j = 0;
+                int j = 0;
                 for (int i = Poffset; i < Poffset + end; i++)
                 {
                     if (i < Poffset + end - 1 && buffer[i] == '\n' && buffer[i + 1] == '\n')
@@ -384,13 +384,13 @@ internal class SerialService
                     {
                         sum += buffer[i];
                     }
-                    //checkbytes[j++] = buffer[i];
+                    checkbytes[j++] = buffer[i];
                 }
                 string result = Encoding.UTF8.GetString(buffer, Poffset, end);
                 if (sum != 0)
                 {
                     Log.Info($"Checksum {mppt}, collected from {Poffset} length {end} bytes, sum = {sum}");
-                    //Log.Info($"checksum used\n{BitConverter.ToString(checkbytes, 0, end)}");
+                    Log.Info($"checksum data used\n{BitConverter.ToString(checkbytes, 0, end)}");
                     //Log.Info($"Has read:\n{result}");
                     return null;
                 }
@@ -486,7 +486,7 @@ internal class SerialService
                     if (int.TryParse(pair[1], out result))
                     {
                         shunt.Power_W = result;
-                        if (result > 3000 || result < -1000)
+                        if (result > 3000 || result < -3000)
                         {
                             Log.Error($"Read Shunt, Power unexpected dev, dev {shunt.Name}: {pair[1]}");
                         }
