@@ -302,12 +302,13 @@ internal class SerialService
 
                 try
                 {
-                    s_cts.CancelAfter(800);
+                    s_cts.CancelAfter(1100);
+                    var startCe = DateTime.Now;
                     while (!foundCh) // find the byte according to "Ch" 
                     {
                         if (s_cts.IsCancellationRequested)
                         {
-                            Log.Error($"Cancel happed, {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}");
+                            Log.Error($"Cancel happed, {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}, after: {(DateTime.Now - startCe).TotalMilliseconds}ms");
                             Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset)}");
                             return null;
                         }
@@ -338,7 +339,7 @@ internal class SerialService
                                 {
                                     foundCh = true;
                                     Choffset = i - 2;
-                                    Log.Debug($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}");
+                                    Log.Info($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}, time: {(DateTime.Now - startCe).TotalMilliseconds}ms");
                                     break;
                                 }
                             }
@@ -368,7 +369,7 @@ internal class SerialService
                 if (!foundCh) return null;
 
                 byte sum = 23; // add a 0d 0a before the PID found  (https://www.victronenergy.com/live/vedirect_protocol:faq#q8how_do_i_calculate_the_text_checksum)
-                int end = Choffset - Poffset + 10;
+                int end = Choffset - Poffset + 10;  // number of bytes to be used for checksum calculation
                 byte[] checkbytes = new byte[500];
 
                 //Log.Info($"data\n{BitConverter.ToString(buffer, Poffset, end)}");  // end must be lenght
@@ -376,15 +377,17 @@ internal class SerialService
                 int j = 0;
                 for (int i = Poffset; i < Poffset + end; i++)
                 {
-                    if (i < Poffset + end - 1 && buffer[i] == '\n' && buffer[i + 1] == '\n')
+                    byte bytetoadd;
+                    if (i < Poffset + end - 2 && buffer[i] == '\n' && buffer[i + 1] == '\n') // end - 2 means not to check teh last byte which is the check byte
                     {
-                        sum += (byte)'\r';
+                        bytetoadd = (byte)'\r';
                     }
                     else
                     {
-                        sum += buffer[i];
+                        bytetoadd = buffer[i];
                     }
-                    checkbytes[j++] = buffer[i];
+                    sum += bytetoadd;
+                    checkbytes[j++] = bytetoadd;
                 }
                 string result = Encoding.UTF8.GetString(buffer, Poffset, end);
                 if (sum != 0)
@@ -395,6 +398,7 @@ internal class SerialService
                     return null;
                 }
                 //Log.Info($"reads:\n{result}");
+                //Log.Info($"Checkbytes {mppt} reads:\n{Encoding.UTF8.GetString(checkbytes, 0, end)}");
                 return result;
             }
         }
