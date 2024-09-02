@@ -8,6 +8,7 @@ using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
 using NodaTime;
+using System.Net.NetworkInformation;
 
 namespace SerialRead.Serial.VE.Direct;
 
@@ -83,7 +84,8 @@ internal class SerialService
                 //Log.Info("DoWorkAsync beginns");
                 try
                 {
-                    bool writeToDb = true;
+                    bool shuntToDb = true;
+                    bool mpptToDb = true;
                     try
                     {
                         //var task1 = CollectDataLines(mppt_1);
@@ -100,28 +102,28 @@ internal class SerialService
                             if (!CheckMpttReadout(result_mppt_1, _ostWest))
                             {
                                 Log.Error($"SerialService failed interpert data dev {_ostWest.Name}: {result_mppt_1}");
-                                writeToDb = false;
+                                mpptToDb = false;
                             }
                             Log.Debug($"Mptt {_ostWest.Name}: Vbatt {_ostWest.Vbatt_V:0.00}, Ibatt {_ostWest.Ibatt_A:0.00}A, Power {_ostWest.PowerPV_W}W, State: {_ostWest.State}, Load {_ostWest.LoadOn}");
                         }
                         else
                         {
                             Log.Error($"Task mppt_1 timeout or fail: result is {result_mppt_1}");
-                            writeToDb = false;
+                            mpptToDb = false;
                         }
                         if (result_mppt_2 != null)
                         {
                             if (!CheckMpttReadout(result_mppt_2, _süd))
                             {
                                 Log.Error($"SerialService failed interpert data dev {_süd.Name}: {result_mppt_2}");
-                                writeToDb = false;
+                                mpptToDb = false;
                             }
                             Log.Debug($"Mptt {_süd.Name}: Vbatt {_süd.Vbatt_V:0.00}V, Ibatt {_süd.Ibatt_A:0.00}A, Power {_süd.PowerPV_W}W, State: {_süd.State}, Load {_süd.LoadOn}");
                         }
                         else
                         {
                             Log.Error($"Task mppt_2 timeout or fail: result is {result_mppt_2}");
-                            writeToDb = false;
+                            mpptToDb = false;
                         }
                         //if (task3.IsCompletedSuccessfully && result[2] != null)
                         //    {
@@ -137,7 +139,7 @@ internal class SerialService
                             if (!CheckShuntReadout(result_s, _shunt))
                             {
                                 Log.Error($"SerialService failed interpert data dev {_shunt.Name}: {result_s}");
-                                writeToDb = false;
+                                shuntToDb = false;
                             }
                             Log.Debug($"Shunt: SOC {_shunt.SOC:0.0}%, Vbatt {_shunt.Vbatt_V:0.00}V, Ibatt {_shunt.Ibatt_A:0.00}A, Power {_shunt.Power_W}W, TimeToGo {_shunt.TimeToGo_min}min, Consumed_Ah {_shunt.Consumed_Ah:0.00}Ah, DM {_shunt.DM:0.0}%");
                         }
@@ -145,7 +147,7 @@ internal class SerialService
                         {
                             // Log.Error($"Task shunt timeout or fail: {task3.Status}, result is {result[2]}");
                             Log.Error($"Task shunt timeout or fail: result is {result_s}");
-                            writeToDb = false;
+                            shuntToDb = false;
                         }
                         //task1.Dispose(); task2.Dispose(); task3.Dispose();
                     }
@@ -161,9 +163,9 @@ internal class SerialService
                     }
 
                     if (_cts.IsCancellationRequested) continue;
-                    if (writeToDb)
+                    if (shuntToDb || mpptToDb)
                     {
-                        if(_shunt.Vbatt_V < 20)
+                        if(shuntToDb && _shunt.Vbatt_V < 20)
                         {
                             Log.Error($"SerialService shunt VBatt below 20V, unexpected! id {_süd.Vbatt_V}");
                         }
@@ -174,8 +176,10 @@ internal class SerialService
                                 using (var writeApi = _client.GetWriteApi())
                                 {
                                     // Write by Point
-                                    var point = PointData.Measurement("batterie")
-                                        //.Tag("location", "west")
+                                    PointData point = null;
+                                    if (shuntToDb && mpptToDb)
+                                    {
+                                         point = PointData.Measurement("batterie")
                                         .Field("Vbatt_V", _shunt.Vbatt_V)
                                         .Field("Ibatt_A", _shunt.Ibatt_A)
                                         .Field("SOC_%", _shunt.SOC)
@@ -184,15 +188,35 @@ internal class SerialService
                                         .Field("IPV_A", _ostWest.Ibatt_A + _süd.Ibatt_A)
                                         .Field("Status", _ostWest.State)
                                         .Timestamp(DateTime.UtcNow, WritePrecision.S);
-
-                                    writeApi.WritePoint(point, Bucket, Org);
+                                    }
+                                    else if (shuntToDb)
+                                    {
+                                        point = PointData.Measurement("batterie")
+                                        .Field("Vbatt_V", _shunt.Vbatt_V)
+                                        .Field("Ibatt_A", _shunt.Ibatt_A)
+                                        .Field("SOC_%", _shunt.SOC)
+                                        .Timestamp(DateTime.UtcNow, WritePrecision.S);
+                                    }
+                                    else if (mpptToDb)
+                                    {
+                                        point = PointData.Measurement("batterie")
+                                        .Field("OstWestPV_W", _ostWest.PowerPV_W)
+                                        .Field("SüdPV_W", _süd.PowerPV_W)
+                                        .Field("IPV_A", _ostWest.Ibatt_A + _süd.Ibatt_A)
+                                        .Field("Status", _ostWest.State)
+                                        .Timestamp(DateTime.UtcNow, WritePrecision.S);
+                                    }
+                                    if (point != null)
+                                    {
+                                        writeApi.WritePoint(point, Bucket, Org);
+                                    }
                                 }
                             }
                             catch (Exception ex)
                             {
                                 Log.Error($"SerialService Influx fail: {ex.Message}");
                             }
-                            //Log.Info("SerialService done Write DB");
+                            Log.Debug("SerialService done Write DB");
                         }
                         await _mqtt.publishBatterie($"{_ostWest.State};{_shunt.Vbatt_V};{_shunt.Ibatt_A};{_shunt.SOC};{_ostWest.YieldToday};{_ostWest.MaxPowerToday};{_süd.YieldToday};{_süd.MaxPowerToday};");
                     }
@@ -233,7 +257,6 @@ internal class SerialService
     private static async Task<string> CollectDataLines(string mppt)
     {
         var s_cts = new CancellationTokenSource();
-        //s_cts.CancelAfter(1200);
         byte[] buffer = new byte[1000];
         int offset = 0;
         try
@@ -255,21 +278,7 @@ internal class SerialService
                         }
 
                         int lastOffset = offset <= 2 ? 2 : offset;
-
                         offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                        //Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                        //Task timeTask = Task.Delay(1000);
-                        //int outcome = Task.WaitAny(readTask, timeTask);
-                        //if(outcome == 1)
-                        //{
-                        //    Log.Error($"ReadAsync timeout {mppt} while loop for foundPI, offset {offset}");
-                        //    return null;
-                        //}
-                        //else
-                        //{
-                        //    offset += readTask.Result;
-                        //}
-
                         // offset zeigt auf das nächste leer byte im Buffer
                         for (int i = lastOffset; i < offset; i++) // search bytes for PID in reverse order
                         {
@@ -296,40 +305,23 @@ internal class SerialService
                 }
 
                 s_cts = new CancellationTokenSource();
-                //s_cts.CancelAfter(800);  // rest of string must be fast << 1sec
                 int Choffset = 0;
                 bool foundCh = false;
-
                 try
                 {
-                    s_cts.CancelAfter(1100);
+                    s_cts.CancelAfter(1200);
                     var startCe = DateTime.Now;
                     while (!foundCh) // find the byte according to "Ch" 
                     {
                         if (s_cts.IsCancellationRequested)
                         {
                             Log.Error($"Cancel happed, {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}, after: {(DateTime.Now - startCe).TotalMilliseconds}ms");
-                            Log.Error($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset)}");
+                            Log.Debug($"Readout until cancel: {Encoding.UTF8.GetString(buffer, Poffset, offset)}");
                             return null;
                         }
 
                         int startindex = offset;
                         offset += await stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-/*
- Dieser Versuch mit extra timer hat im log vom 240814 NIE zugeschlagen, aber 56 Restarts des docker bis ca. 16Uhr
-                        Task<int> readTask = stream.ReadAsync(buffer, offset, buffer.Length - offset, s_cts.Token);
-                        Task timeTask = Task.Delay(1200);
-                        int outcome = Task.WaitAny(readTask, timeTask);
-                        if (outcome == 1)
-                        {
-                            Log.Error($"ReadAsync timeout {mppt} while loop for foundCh, offset {offset}, after PI {offset - Poffset}");
-                            return null;
-                        }
-                        else
-                        {
-                            offset += readTask.Result;
-                        }
-*/
                         for (int i = startindex; i < offset; i++) // search bytes for Che in reverse order
                         {
                             if (buffer[i] == 'e')
@@ -340,6 +332,17 @@ internal class SerialService
                                     foundCh = true;
                                     Choffset = i - 2;
                                     Log.Info($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}, time: {(DateTime.Now - startCe).TotalMilliseconds}ms");
+                                    s_cts = new CancellationTokenSource();
+                                    s_cts.CancelAfter(1100);
+                                    break;
+                                }
+                            }
+                            if (buffer[i] == 'D' ) // check if PID apperas again
+                            {
+                                if (buffer[i - 1] == 'I' && buffer[i - 2] == 'P')
+                                {
+                                    Poffset = i - 2;
+                                    Log.Info($"{mppt} foundPI while seaching Che {foundPI} at {Poffset}");
                                     break;
                                 }
                             }
@@ -350,9 +353,10 @@ internal class SerialService
                         }
 
                         // stop nach zu langem Suchen nach Che (nur USB 1)
-                        if(!foundCh && offset > Poffset + 150 && mppt == "/dev/ttyUSB1")
+                        if(!foundCh && offset > Poffset + 160 && mppt == "/dev/ttyUSB1")
                         {
                             Log.Info($"{mppt} stop search for Che, offset {offset}, Poffset {Poffset}");
+                            Log.Info($"Found: {Encoding.UTF8.GetString(buffer, Poffset, offset)}");
                             break;
                         }
 
@@ -392,8 +396,8 @@ internal class SerialService
                 string result = Encoding.UTF8.GetString(buffer, Poffset, end);
                 if (sum != 0)
                 {
-                    Log.Info($"Checksum {mppt}, collected from {Poffset} length {end} bytes, sum = {sum}");
-                    Log.Info($"checksum data used\n{BitConverter.ToString(checkbytes, 0, end)}");
+                    Log.Info($"Checksum {mppt} not 0, collected from {Poffset} length {end} bytes, sum = 0x{sum:X2}");
+                    Log.Debug($"checksum data used\n{BitConverter.ToString(checkbytes, 0, end)}");
                     //Log.Info($"Has read:\n{result}");
                     return null;
                 }
