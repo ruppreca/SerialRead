@@ -331,7 +331,7 @@ internal class SerialService
                                 {
                                     foundCh = true;
                                     Choffset = i - 2;
-                                    Log.Info($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}, time: {(DateTime.Now - startCe).TotalMilliseconds}ms");
+                                    Log.Debug($"{mppt} foundCh {foundCh} at {Choffset}, after PI {Choffset - Poffset}, time: {(DateTime.Now - startCe).TotalMilliseconds}ms");
                                     s_cts = new CancellationTokenSource();
                                     s_cts.CancelAfter(1100);
                                     break;
@@ -356,7 +356,7 @@ internal class SerialService
                         if(!foundCh && offset > Poffset + 160 && mppt == "/dev/ttyUSB1")
                         {
                             Log.Info($"{mppt} stop search for Che, offset {offset}, Poffset {Poffset}");
-                            Log.Info($"Found: {Encoding.UTF8.GetString(buffer, Poffset, offset)}");
+                            Log.Debug($"Found: {Encoding.UTF8.GetString(buffer, Poffset, offset)}");
                             break;
                         }
 
@@ -375,7 +375,6 @@ internal class SerialService
                 byte sum = 23; // add a 0d 0a before the PID found  (https://www.victronenergy.com/live/vedirect_protocol:faq#q8how_do_i_calculate_the_text_checksum)
                 int end = Choffset - Poffset + 10;  // number of bytes to be used for checksum calculation
                 byte[] checkbytes = new byte[500];
-
                 //Log.Info($"data\n{BitConverter.ToString(buffer, Poffset, end)}");  // end must be lenght
 
                 int j = 0;
