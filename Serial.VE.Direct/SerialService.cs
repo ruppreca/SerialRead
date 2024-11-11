@@ -225,6 +225,9 @@ internal class SerialService
                 {
                     Log.Error($"Exeption in SerialService while loop: {e.Message}");
                     Log.Error(e);
+
+                    _mqtt = new();
+                    await _mqtt.Connect_Client_Timeout("Batterie");                   
                 }
             }
         }
