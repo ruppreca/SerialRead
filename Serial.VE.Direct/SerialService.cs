@@ -230,7 +230,7 @@ internal class SerialService
                             }
                             Log.Debug("SerialService done Write DB");
                         }
-                        await _mqtt.publishBatterie($"{_ostWest.State};{_shunt.Vbatt_V};{_shunt.Ibatt_A};{_shunt.SOC};{_ostWest.YieldToday};{_ostWest.MaxPowerToday};{_süd.YieldToday};{_süd.MaxPowerToday};");
+                        await _mqtt.publishBatterie($"{_ostWest.State};{_shunt.Vbatt_V};{_shunt.Ibatt_A};{_shunt.SOC};{_ostWest.YieldToday};{_ostWest.MaxPowerToday};{_süd.YieldToday};{_süd.MaxPowerToday};{_süd.PowerPV_W + _ostWest.PowerPV_W}");
                     }
                 }
                 catch (Exception e)
