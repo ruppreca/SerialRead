@@ -23,16 +23,18 @@ internal class Mqtt
     public Mqtt()
     {
         _callbackDir.Clear();
-        var mqttFactory = new MqttFactory();
-        _client = (MqttClient)mqttFactory.CreateMqttClient();
-
-        _client.ApplicationMessageReceivedAsync += HandleMqttApplicationMessageReceived;
-
-        Log.Info($"Mqtt connect client created");
     }
 
     public async Task Connect_Client_Timeout(string id)
     {
+        if(_client == null)
+        {
+            var mqttFactory = new MqttFactory();
+            _client = (MqttClient)mqttFactory.CreateMqttClient();
+            _client.ApplicationMessageReceivedAsync += HandleMqttApplicationMessageReceived;
+            Log.Info($"Mqtt connect client created");
+        }
+
         // This sample creates a simple MQTT client and connects to an invalid broker using a timeout.
         var mqttClientOptions = new MqttClientOptionsBuilder()
             .WithTcpServer(mqttIp)
@@ -52,6 +54,17 @@ internal class Mqtt
         }
 
         Log.Info($"Mqtt client {id} connected: {_client.IsConnected}");
+    }
+
+    public void Close()
+    {
+        _client.Dispose();
+        _client = null;
+    }
+
+    public bool IsConnected()
+    {
+        return _client.IsConnected;
     }
 
     public async void subscribe(string topic, Action<string> callback)

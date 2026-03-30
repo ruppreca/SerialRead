@@ -81,6 +81,18 @@ internal class SerialService
         {
             while (!_cts.Token.IsCancellationRequested && await _timer.WaitForNextTickAsync(_cts.Token))
             {
+                if(_mqtt is null)
+                {
+                    _mqtt = new();
+                    await _mqtt.Connect_Client_Timeout("Batterie");
+                    if (!_mqtt.IsConnected())
+                    {
+                        Log.Error("SerialService failed to reconnect to MQTT");
+                        _mqtt = null;
+                        continue;
+                    }
+                }
+
                 //Log.Info("DoWorkAsync beginns");
                 try
                 {
@@ -226,8 +238,8 @@ internal class SerialService
                     Log.Error($"Exeption in SerialService while loop: {e.Message}");
                     Log.Error(e);
 
-                    _mqtt = new();
-                    await _mqtt.Connect_Client_Timeout("Batterie");                   
+                    _mqtt.Close();
+                    _mqtt = null;
                 }
             }
         }
